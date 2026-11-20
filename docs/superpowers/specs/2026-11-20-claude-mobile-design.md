@@ -60,7 +60,7 @@ the app's allow/deny reply on stdin, so no MCP server is needed. Fallback:
 `--permission-prompt-tool` with a small MCP server. Last resort: a
 per-session `--permission-mode` picker. Existing allow/deny rules and the
 mode are evaluated first; only undecided requests reach the phone.
-The exact message format is UNVERIFIED and is the first thing the spike checks.
+Verified by spike 2: add `--permission-prompt-tool stdio` (see Spike result 2).
 
 Layers (Dart): `ssh/` (connection, reconnect, exec channel),
 `claude/` (stream-json codec, session listing), `state/` (per-session
@@ -87,3 +87,25 @@ implementation, test strategy (codec and reducer are pure Dart, unit-test them f
 A throwaway spike: Dart CLI that SSHes to a host, runs the stream-json
 command and prints parsed events, including one permission round-trip.
 Its outcome decides the permissions design above.
+
+## Spike result 1 (2026-11-20, claude 2.1.329)
+Plain `-p --input-format stream-json --output-format stream-json --verbose
+--permission-mode default`: works, but a tool needing approval is NOT sent to
+the host. Claude emits `system/permission_denied` and the tool_result is an
+error (`decision: reject, source: config`); the turn ends normally.
+So "app as host" needs an extra opt-in. Untested guess: `--permission-prompt-tool stdio`
+(spike2.js). If that fails, fall back to an MCP prompt tool.
+
+## Spike result 2 (2026-11-20) — CONFIRMED, no MCP needed
+With `--permission-prompt-tool stdio`, Claude writes on stdout:
+`{"type":"control_request","request_id":ID,"request":{"subtype":"can_use_tool",
+"tool_name","display_name","input","description","permission_suggestions":[...],
+"blocked_path","tool_use_id"}}`
+and waits. The app answers on stdin:
+`{"type":"control_response","response":{"subtype":"success","request_id":ID,
+"response":{"behavior":"allow","updatedInput":<input>}}}`
+(deny: `behavior:"deny"` with a message; deny format untested).
+The tool then ran (`decision: accept, source: user_temporary`) and the turn
+finished normally. `permission_suggestions` (addRules / addDirectories /
+setMode) can back "always allow" buttons in the UI; their reply format is untested.
+Decision: the MCP fallback is dropped from v1.
