@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:claude_mobile/ssh/profile.dart';
+import 'package:claude_mobile/ssh/ssh_service.dart';
 import 'package:claude_mobile/storage/profile_store.dart';
 
 class MemoryStore implements KeyValueStore {
@@ -11,4 +15,64 @@ class MemoryStore implements KeyValueStore {
 
   @override
   Future<void> delete(String k) async => data.remove(k);
+}
+
+class FakeChannel implements LineChannel {
+  final StreamController<String> out = StreamController<String>();
+  final List<String> written = [];
+  final Completer<void> _done = Completer<void>();
+  bool closed = false;
+
+  @override
+  Stream<String> get lines => out.stream;
+
+  @override
+  String stderrText = '';
+
+  @override
+  void writeLine(String jsonLine) => written.add(jsonLine);
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    if (!out.isClosed) await out.close();
+  }
+
+  @override
+  Future<void> get done => _done.future;
+
+  /// The remote side went away.
+  Future<void> drop() => out.close();
+}
+
+class FakeSsh implements SshService {
+  final List<String> opened = [];
+  final List<String> ran = [];
+  final List<FakeChannel> channels = [];
+  Map<String, String> runResults = {};
+  Object? openError;
+
+  @override
+  bool isConnected = true;
+
+  @override
+  Future<void> connect(Profile p, String privateKeyPem) async {}
+
+  @override
+  Future<String> run(String command) async {
+    ran.add(command);
+    return runResults[command] ?? '';
+  }
+
+  @override
+  Future<LineChannel> open(String command) async {
+    if (openError != null) throw openError!;
+    opened.add(command);
+    final c = FakeChannel();
+    channels.add(c);
+    return c;
+  }
+
+  @override
+  Future<void> disconnect() async {}
 }

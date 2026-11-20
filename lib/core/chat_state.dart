@@ -162,3 +162,6 @@ List<ChatItem> _settled(List<ChatItem> items) => [
   for (final i in items)
     if (i is AssistantTextItem && i.streaming) AssistantTextItem(i.text) else i,
 ];
+
+ChatState addNotice(ChatState s, String text) =>
+    s._copy(items: [...s.items, NoticeItem(text)]);

@@ -1,0 +1,125 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
+
+import '../core/chat_state.dart';
+import '../core/codec.dart';
+import '../core/session_listing.dart';
+import '../ssh/ssh_service.dart';
+
+/// Drives one Claude session over an SSH exec channel.
+class SessionController extends ValueNotifier<ChatState> {
+  SessionController(
+    this._ssh, {
+    required String? sessionId,
+    required this.cwd,
+    String Function()? newId,
+    List<ChatItem> history = const [],
+  }) : _resumeId = sessionId,
+       _newId = newId ?? const Uuid().v4,
+       super(ChatState(items: history, sessionId: sessionId));
+
+  final SshService _ssh;
+  final String cwd;
+  final String Function() _newId;
+  final String? _resumeId;
+
+  LineChannel? _channel;
+  StreamSubscription<String>? _sub;
+
+  /// True while the remote `claude` process is attached.
+  bool get connected => _channel != null;
+
+  static String buildCommand({String? resumeId, String? newId}) {
+    final session = resumeId != null
+        ? '--resume ${shellQuote(resumeId)}'
+        : '--session-id ${shellQuote(newId!)}';
+    return 'claude -p --input-format stream-json --output-format stream-json '
+        '--verbose --include-partial-messages --permission-prompt-tool stdio '
+        '$session';
+  }
+
+  Future<void> start() async {
+    await _detach();
+    final resume = value.sessionId ?? _resumeId;
+    final claude = buildCommand(
+      resumeId: resume,
+      newId: resume == null ? _newId() : null,
+    );
+    // Login shell: a bare SSH exec often lacks the PATH that holds `claude`.
+    final command = 'bash -lc ${shellQuote('cd ${shellQuote(cwd)} && $claude')}';
+    final LineChannel channel;
+    try {
+      channel = await _ssh.open(command);
+    } on Object catch (e) {
+      value = addNotice(value, 'Could not start Claude: $e');
+      return;
+    }
+    _channel = channel;
+    _sub = channel.lines.listen(
+      (line) {
+        for (final event in parseEvents(line)) {
+          value = reduce(value, event);
+        }
+      },
+      onDone: () => _dropped(channel),
+      onError: (_) => _dropped(channel),
+      cancelOnError: true,
+    );
+    notifyListeners();
+  }
+
+  /// Re-attaches to the same session. Never answers a request left pending.
+  Future<void> reconnect() => start();
+
+  void send(String text) {
+    final channel = _channel;
+    if (channel == null) {
+      value = addNotice(value, 'Not connected: message not sent');
+      return;
+    }
+    channel.writeLine(encodeUserMessage(text));
+    value = addUserMessage(value, text);
+  }
+
+  void approve() {
+    final request = value.pending;
+    final channel = _channel;
+    if (request == null || channel == null) return;
+    channel.writeLine(encodeAllow(request));
+    value = permissionAnswered(value);
+  }
+
+  void deny([String message = 'Denied from phone']) {
+    final request = value.pending;
+    final channel = _channel;
+    if (request == null || channel == null) return;
+    channel.writeLine(encodeDeny(request.requestId, message));
+    value = permissionAnswered(value);
+  }
+
+  void _dropped(LineChannel channel) {
+    if (!identical(channel, _channel)) return;
+    _channel = null;
+    _sub = null;
+    final stderr = channel.stderrText.trim();
+    var next = value;
+    if (stderr.isNotEmpty) next = addNotice(next, stderr);
+    value = connectionLost(next);
+  }
+
+  Future<void> _detach() async {
+    final channel = _channel;
+    _channel = null;
+    await _sub?.cancel();
+    _sub = null;
+    await channel?.close();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_detach());
+    super.dispose();
+  }
+}
