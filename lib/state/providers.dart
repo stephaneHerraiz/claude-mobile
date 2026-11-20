@@ -27,12 +27,14 @@ final sshFactoryProvider = Provider<SshService Function()>(
 /// One live SSH connection per profile id, closed when no screen uses it.
 final sshConnectionProvider = FutureProvider.autoDispose
     .family<SshService, String>((ref, profileId) async {
+      // Everything taken from ref comes before the first await: the provider
+      // may be disposed while connecting.
       final store = ref.watch(profileStoreProvider);
+      final ssh = ref.watch(sshFactoryProvider)();
+      ref.onDispose(ssh.disconnect);
       final profile = (await store.list()).firstWhere((p) => p.id == profileId);
       final key = await store.privateKey(profileId);
       if (key == null) throw StateError('No private key for ${profile.name}');
-      final ssh = ref.watch(sshFactoryProvider)();
-      ref.onDispose(ssh.disconnect);
       await ssh.connect(profile, key);
       return ssh;
     });

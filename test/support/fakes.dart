@@ -51,6 +51,7 @@ class FakeSsh implements SshService {
   final List<FakeChannel> channels = [];
   Map<String, String> runResults = {};
   Object? openError;
+  Object? runError;
 
   @override
   bool isConnected = true;
@@ -61,6 +62,7 @@ class FakeSsh implements SshService {
   @override
   Future<String> run(String command) async {
     ran.add(command);
+    if (runError != null) throw runError!;
     return runResults[command] ?? '';
   }
 

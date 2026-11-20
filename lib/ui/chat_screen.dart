@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../core/chat_state.dart';
+import '../core/history.dart';
 import '../core/session_listing.dart';
 import '../ssh/profile.dart';
 import '../ssh/ssh_service.dart';
@@ -265,6 +266,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Holds the SSH connection open for as long as this screen lives.
+    ref.listenManual(sshConnectionProvider(widget.profile.id), (_, _) {});
     _open();
   }
 
@@ -287,6 +290,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ssh,
         sessionId: widget.session?.id,
         cwd: widget.cwd,
+        history: await _history(ssh),
       )..addListener(_onChange);
       await controller.start();
       if (!mounted) return controller.dispose();
@@ -294,6 +298,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _wasConnected = controller.connected;
     } on Object catch (e) {
       if (mounted) setState(() => _error = e);
+    }
+  }
+
+  /// What was said before; the chat still works when it cannot be read.
+  Future<List<ChatItem>> _history(SshService ssh) async {
+    final session = widget.session;
+    if (session == null) return const [];
+    try {
+      return parseHistory(await ssh.run(historyCommand(session.path)));
+    } on Object {
+      return const [NoticeItem('History unavailable')];
     }
   }
 
