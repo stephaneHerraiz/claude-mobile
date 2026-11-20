@@ -117,4 +117,17 @@ void main() {
     expect(ssh.opened.length, 2);
     expect(find.text('Reconnect'), findsNothing);
   });
+
+  testWidgets('keeps the typed text when the message cannot be sent', (
+    t,
+  ) async {
+    await pump(t); // never started: disconnected
+    await t.enterText(find.byType(TextField), 'a long prompt');
+    await t.tap(find.byTooltip('Send'));
+    await t.pump();
+    expect(
+      t.widget<TextField>(find.byType(TextField)).controller!.text,
+      'a long prompt',
+    );
+  });
 }

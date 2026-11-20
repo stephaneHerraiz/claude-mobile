@@ -40,7 +40,14 @@ class SessionController extends ValueNotifier<ChatState> {
         '$session';
   }
 
-  Future<void> start() async {
+  Future<void>? _starting;
+
+  /// Attaches to the remote session. Calls made while one is in flight share
+  /// it: two `claude --resume` on one session would fork its history.
+  Future<void> start() =>
+      _starting ??= _start().whenComplete(() => _starting = null);
+
+  Future<void> _start() async {
     await _detach();
     final resume = value.sessionId ?? _resumeId;
     final claude = buildCommand(
@@ -78,14 +85,16 @@ class SessionController extends ValueNotifier<ChatState> {
     return start();
   }
 
-  void send(String text) {
+  /// Returns false, leaving a notice, when there is no link to send over.
+  bool send(String text) {
     final channel = _channel;
     if (channel == null) {
       value = addNotice(value, 'Not connected: message not sent');
-      return;
+      return false;
     }
     channel.writeLine(encodeUserMessage(text));
     value = addUserMessage(value, text);
+    return true;
   }
 
   void approve() {

@@ -24,6 +24,10 @@ final sshFactoryProvider = Provider<SshService Function()>(
       () => DartSsh2Service(ref.read(keyValueStoreProvider)),
 );
 
+/// Riverpod retries failed providers by default. A refused key retried in a
+/// loop looks like an attack to the server; the user retries by hand instead.
+Duration? _never(int retryCount, Object error) => null;
+
 /// One live SSH connection per profile id, closed when no screen uses it.
 final sshConnectionProvider = FutureProvider.autoDispose
     .family<SshService, String>((ref, profileId) async {
@@ -37,10 +41,10 @@ final sshConnectionProvider = FutureProvider.autoDispose
       if (key == null) throw StateError('No private key for ${profile.name}');
       await ssh.connect(profile, key);
       return ssh;
-    });
+    }, retry: _never);
 
 final sessionListProvider = FutureProvider.autoDispose
     .family<List<SessionInfo>, String>((ref, profileId) async {
       final ssh = await ref.watch(sshConnectionProvider(profileId).future);
       return loadSessions(ssh, DateTime.now());
-    });
+    }, retry: _never);

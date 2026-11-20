@@ -35,6 +35,33 @@ class SessionsScreen extends ConsumerWidget {
     );
   }
 
+  /// Older sessions are listed without their directory; read it on demand.
+  Future<void> _openSession(
+    BuildContext context,
+    WidgetRef ref,
+    SessionInfo session,
+  ) async {
+    var s = session;
+    if (s.cwd.isEmpty) {
+      try {
+        final ssh = await ref.read(sshConnectionProvider(profile.id).future);
+        s = withHead(s, await ssh.run(headCommand(s.path)));
+      } on Object {
+        // Reported below: without a directory the session cannot be resumed.
+      }
+    }
+    if (!context.mounted) return;
+    if (s.cwd.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not find this session\'s directory.'),
+        ),
+      );
+      return;
+    }
+    _openChat(context, session: s, cwd: s.cwd);
+  }
+
   Future<void> _newSession(BuildContext context, String suggestion) async {
     final input = TextEditingController(text: suggestion);
     final cwd = await showDialog<String>(
@@ -134,10 +161,7 @@ class SessionsScreen extends ConsumerWidget {
                             child: Icon(Icons.circle, size: 12),
                           )
                         : null,
-                    // Without a known directory the session cannot be resumed
-                    // from the right place.
-                    enabled: s.cwd.isNotEmpty,
-                    onTap: () => _openChat(context, session: s, cwd: s.cwd),
+                    onTap: () => _openSession(context, ref, s),
                   ),
               ],
             ],

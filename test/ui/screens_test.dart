@@ -99,4 +99,42 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('Retry'), findsOneWidget);
   });
+
+  testWidgets('a refused connection is tried once, not retried in a loop', (
+    t,
+  ) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    ssh.connectError = Exception('auth failed');
+    await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+    await t.pump(const Duration(seconds: 30));
+    await t.pumpAndSettle();
+    expect(find.text('Retry'), findsOneWidget);
+    expect(ssh.connects, 1);
+  });
+
+  testWidgets('an old session without a known directory opens on tap', (
+    t,
+  ) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    final lines = [
+      for (var i = 0; i < 31; i++) '${1795188000 - i}.0 /p/-x/s$i.jsonl',
+    ].join('\n');
+    ssh.runResults = {
+      listSessionsCommand: '$lines\n',
+      for (var i = 0; i < 31; i++)
+        headCommand(
+          '/p/-x/s$i.jsonl',
+        ): '{"type":"user","cwd":"/home/me/x","message":{"content":"task $i"}}\n',
+    };
+    await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+    await t.pumpAndSettle();
+    expect(ssh.ran, isNot(contains(headCommand('/p/-x/s30.jsonl'))));
+    await t.scrollUntilVisible(find.text('s30'), 300);
+    await t.tap(find.text('s30'));
+    await t.pumpAndSettle();
+    expect(ssh.ran, contains(headCommand('/p/-x/s30.jsonl')));
+    expect(ssh.opened.single, contains("--resume"));
+    expect(ssh.opened.single, contains('s30'));
+    expect(ssh.opened.single, contains('/home/me/x'));
+  });
 }

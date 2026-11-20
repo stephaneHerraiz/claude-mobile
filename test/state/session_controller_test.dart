@@ -203,4 +203,56 @@ void main() {
       contains('bash: claude: command not found'),
     );
   });
+
+  test(
+    'the remote command quotes a cwd with a space and an apostrophe',
+    () async {
+      String q(String s) => "'${s.replaceAll("'", r"'\''")}'";
+      final c = SessionController(
+        ssh,
+        sessionId: 'abc',
+        cwd: "/home/me/it's mine",
+        newId: () => 'n',
+      );
+      await c.start();
+      const claude =
+          'claude -p --input-format stream-json --output-format stream-json '
+          '--verbose --include-partial-messages --permission-prompt-tool stdio '
+          "--resume 'abc'";
+      // What bash -lc must receive once the outer quoting is undone.
+      const inner = r"cd '/home/me/it'\''s mine' && " + claude;
+      expect(ssh.opened.single, 'bash -lc ${q(inner)}');
+    },
+  );
+
+  test('two starts at once open a single remote process', () async {
+    final c = make(sessionId: 'abc');
+    await Future.wait([c.start(), c.start(), c.reconnect()]);
+    expect(ssh.opened.length, 1);
+    expect(c.connected, true);
+  });
+
+  test('send reports whether the message left', () async {
+    final c = make(sessionId: 'abc');
+    expect(c.send('lost'), false);
+    await c.start();
+    expect(c.send('sent'), true);
+  });
+
+  test('approving answers queued requests one at a time, in order', () async {
+    final c = make(sessionId: 'abc');
+    await c.start();
+    ssh.channels.single.out.add(permLine);
+    ssh.channels.single.out.add(permLine.replaceAll('req-9', 'req-10'));
+    await pumpEventQueue();
+    c.approve();
+    expect(c.value.pending!.requestId, 'req-10');
+    c.deny();
+    final ids = [
+      for (final w in ssh.channels.single.written)
+        (jsonDecode(w) as Map)['response']['request_id'],
+    ];
+    expect(ids, ['req-9', 'req-10']);
+    expect(c.value.pending, isNull);
+  });
 }

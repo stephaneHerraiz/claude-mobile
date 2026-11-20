@@ -51,8 +51,8 @@ class _ChatViewState extends State<ChatView> {
   void _send() {
     final text = _input.text.trim();
     if (text.isEmpty) return;
-    widget.controller.send(text);
-    _input.clear();
+    // Keep what was typed when it could not leave.
+    if (widget.controller.send(text)) _input.clear();
   }
 
   void _followNewItems(int count) {

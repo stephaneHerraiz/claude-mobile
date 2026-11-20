@@ -52,12 +52,17 @@ class FakeSsh implements SshService {
   Map<String, String> runResults = {};
   Object? openError;
   Object? runError;
+  Object? connectError;
+  int connects = 0;
 
   @override
   bool isConnected = true;
 
   @override
-  Future<void> connect(Profile p, String privateKeyPem) async {}
+  Future<void> connect(Profile p, String privateKeyPem) async {
+    connects++;
+    if (connectError != null) throw connectError!;
+  }
 
   @override
   Future<String> run(String command) async {

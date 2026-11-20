@@ -119,4 +119,52 @@ void main() {
     final s = ChatState.empty();
     expect(identical(reduce(s, const UnknownEvent({})), s), true);
   });
+
+  test('a second permission request queues behind the first', () {
+    const second = PermissionRequest('req2', 't2', 'Bash', {
+      'command': 'rm b',
+    }, 'Remove b');
+    var s = run([perm, second]);
+    expect(s.pending!.requestId, 'req1', reason: 'first asked, first shown');
+    s = permissionAnswered(s);
+    expect(s.pending!.requestId, 'req2');
+    s = permissionAnswered(s);
+    expect(s.pending, isNull);
+  });
+
+  test('connectionLost drops every queued permission request', () {
+    const second = PermissionRequest('req2', 't2', 'Bash', {}, '');
+    final s = connectionLost(run([perm, second]));
+    expect(s.pending, isNull);
+    expect(permissionAnswered(s).pending, isNull);
+  });
+
+  test('text, tool, text in one turn keeps order without duplicates', () {
+    final s = run([
+      const StreamDelta('Let me '),
+      const StreamDelta('look.'),
+      const AssistantMessage('m1', [TextBlock('Let me look.')]),
+      const AssistantMessage('m1', [ToolUseBlock('t', 'Bash', {})]),
+      const ToolResult('t', 'ok', false),
+      const StreamDelta('All '),
+      const StreamDelta('good.'),
+      const AssistantMessage('m2', [TextBlock('All good.')]),
+    ]);
+    expect(s.items.length, 3);
+    expect((s.items[0] as AssistantTextItem).text, 'Let me look.');
+    expect(s.items[1], isA<ToolItem>());
+    expect((s.items[2] as AssistantTextItem).text, 'All good.');
+    expect(
+      s.items.whereType<AssistantTextItem>().any((i) => i.streaming),
+      false,
+    );
+  });
+
+  test('an assistant message with no visible block keeps the draft', () {
+    final s = run([
+      const StreamDelta('partial'),
+      const AssistantMessage('m0', []),
+    ]);
+    expect((s.items.single as AssistantTextItem).text, 'partial');
+  });
 }

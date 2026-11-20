@@ -49,7 +49,7 @@ class NoticeItem extends ChatItem {
 class ChatState {
   const ChatState({
     required this.items,
-    this.pending,
+    this.pendingQueue = const [],
     this.busy = false,
     this.sessionId,
     this.costUsd = 0,
@@ -59,8 +59,13 @@ class ChatState {
 
   final List<ChatItem> items;
 
-  /// The permission request waiting for the user's answer, if any.
-  final PermissionRequest? pending;
+  /// Permission requests not answered yet, oldest first. Parallel tool calls
+  /// can ask several at once; each needs its own answer.
+  final List<PermissionRequest> pendingQueue;
+
+  /// The permission request to show the user now, if any.
+  PermissionRequest? get pending =>
+      pendingQueue.isEmpty ? null : pendingQueue.first;
 
   /// True while Claude is working on a turn.
   final bool busy;
@@ -69,14 +74,13 @@ class ChatState {
 
   ChatState _copy({
     List<ChatItem>? items,
-    PermissionRequest? pending,
-    bool clearPending = false,
+    List<PermissionRequest>? pendingQueue,
     bool? busy,
     String? sessionId,
     double? costUsd,
   }) => ChatState(
     items: items ?? this.items,
-    pending: clearPending ? null : (pending ?? this.pending),
+    pendingQueue: pendingQueue ?? this.pendingQueue,
     busy: busy ?? this.busy,
     sessionId: sessionId ?? this.sessionId,
     costUsd: costUsd ?? this.costUsd,
@@ -101,6 +105,8 @@ ChatState reduce(ChatState s, ClaudeEvent e) {
         items: [...s.items, AssistantTextItem(e.text, streaming: true)],
       );
     case AssistantMessage():
+      // A thinking-only message carries nothing to show: keep the draft.
+      if (e.blocks.isEmpty) return s;
       return s._copy(
         items: [
           ...s.items.where((i) => !(i is AssistantTextItem && i.streaming)),
@@ -125,11 +131,11 @@ ChatState reduce(ChatState s, ClaudeEvent e) {
         ],
       );
     case PermissionRequest():
-      return s._copy(pending: e);
+      return s._copy(pendingQueue: [...s.pendingQueue, e]);
     case ResultEvent():
       return s._copy(
         items: [..._settled(s.items), if (e.isError) NoticeItem(e.text)],
-        clearPending: true,
+        pendingQueue: const [],
         busy: false,
         costUsd: e.costUsd,
       );
@@ -141,8 +147,9 @@ ChatState reduce(ChatState s, ClaudeEvent e) {
 ChatState addUserMessage(ChatState s, String text) =>
     s._copy(items: [...s.items, UserItem(text)], busy: true);
 
-/// The user answered the pending permission request.
-ChatState permissionAnswered(ChatState s) => s._copy(clearPending: true);
+/// The user answered the request on screen; the next queued one shows up.
+ChatState permissionAnswered(ChatState s) =>
+    s._copy(pendingQueue: s.pendingQueue.skip(1).toList());
 
 /// The transport dropped: nothing is running or waiting any more.
 ChatState connectionLost(ChatState s) => s._copy(
@@ -154,7 +161,7 @@ ChatState connectionLost(ChatState s) => s._copy(
         i,
     const NoticeItem('Connection lost'),
   ],
-  clearPending: true,
+  pendingQueue: const [],
   busy: false,
 );
 
