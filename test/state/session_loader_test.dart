@@ -12,10 +12,8 @@ void main() {
       ..runResults = {
         listSessionsCommand:
             '1795180000.0 /p/-a/old.jsonl\n1795188000.0 /p/-b/new.jsonl\n',
-        headCommand('/p/-b/new.jsonl'):
-            '{"type":"user","cwd":"/b","message":{"role":"user","content":"newest"}}\n',
-        headCommand('/p/-a/old.jsonl'):
-            '{"type":"user","cwd":"/a","message":{"role":"user","content":"oldest"}}\n',
+        headCommand('/p/-b/new.jsonl'): '{"type":"user","cwd":"/b","message":{"role":"user","content":"newest"}}\n',
+        headCommand('/p/-a/old.jsonl'): '{"type":"user","cwd":"/a","message":{"role":"user","content":"oldest"}}\n',
       };
     final sessions = await loadSessions(ssh, now);
     expect(sessions.map((s) => s.title), ['newest', 'oldest']);

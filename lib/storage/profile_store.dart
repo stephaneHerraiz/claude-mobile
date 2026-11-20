@@ -53,7 +53,8 @@ class ProfileStore {
     await _writeProfiles([...others, p]);
   }
 
-  Future<String?> privateKey(String profileId) => _kv.read(_keyEntry(profileId));
+  Future<String?> privateKey(String profileId) =>
+      _kv.read(_keyEntry(profileId));
 
   Future<void> remove(String profileId) async {
     await _writeProfiles((await list()).where((p) => p.id != profileId));

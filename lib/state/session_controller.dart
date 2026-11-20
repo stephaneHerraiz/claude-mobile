@@ -20,7 +20,7 @@ class SessionController extends ValueNotifier<ChatState> {
        _newId = newId ?? const Uuid().v4,
        super(ChatState(items: history, sessionId: sessionId));
 
-  final SshService _ssh;
+  SshService _ssh;
   final String cwd;
   final String Function() _newId;
   final String? _resumeId;
@@ -48,7 +48,8 @@ class SessionController extends ValueNotifier<ChatState> {
       newId: resume == null ? _newId() : null,
     );
     // Login shell: a bare SSH exec often lacks the PATH that holds `claude`.
-    final command = 'bash -lc ${shellQuote('cd ${shellQuote(cwd)} && $claude')}';
+    final command =
+        'bash -lc ${shellQuote('cd ${shellQuote(cwd)} && $claude')}';
     final LineChannel channel;
     try {
       channel = await _ssh.open(command);
@@ -70,8 +71,12 @@ class SessionController extends ValueNotifier<ChatState> {
     notifyListeners();
   }
 
-  /// Re-attaches to the same session. Never answers a request left pending.
-  Future<void> reconnect() => start();
+  /// Re-attaches to the same session, over [ssh] when the previous link is
+  /// dead. Never answers a request left pending.
+  Future<void> reconnect({SshService? ssh}) {
+    if (ssh != null) _ssh = ssh;
+    return start();
+  }
 
   void send(String text) {
     final channel = _channel;

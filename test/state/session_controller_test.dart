@@ -141,22 +141,25 @@ void main() {
     expect(ssh.channels.single.written.length, 1, reason: 'only the message');
   });
 
-  test('reconnect resumes with the id from SystemInit, answers nothing', () async {
-    final c = make();
-    await c.start();
-    ssh.channels.single.out.add(initLine);
-    ssh.channels.single.out.add(permLine);
-    await pumpEventQueue();
-    await ssh.channels.single.drop();
-    await pumpEventQueue();
+  test(
+    'reconnect resumes with the id from SystemInit, answers nothing',
+    () async {
+      final c = make();
+      await c.start();
+      ssh.channels.single.out.add(initLine);
+      ssh.channels.single.out.add(permLine);
+      await pumpEventQueue();
+      await ssh.channels.single.drop();
+      await pumpEventQueue();
 
-    await c.reconnect();
-    expect(ssh.opened.length, 2);
-    expect(ssh.opened.last, contains('--resume'));
-    expect(ssh.opened.last, contains('sid-1'));
-    expect(ssh.channels.last.written, isEmpty);
-    expect(c.connected, true);
-  });
+      await c.reconnect();
+      expect(ssh.opened.length, 2);
+      expect(ssh.opened.last, contains('--resume'));
+      expect(ssh.opened.last, contains('sid-1'));
+      expect(ssh.channels.last.written, isEmpty);
+      expect(c.connected, true);
+    },
+  );
 
   test('events from a replaced channel are ignored', () async {
     final c = make(sessionId: 'abc');
@@ -173,7 +176,10 @@ void main() {
     final c = make(sessionId: 'abc');
     await c.start();
     expect(c.connected, false);
-    expect((c.value.items.single as NoticeItem).text, contains('Not connected'));
+    expect(
+      (c.value.items.single as NoticeItem).text,
+      contains('Not connected'),
+    );
   });
 
   test('non-JSON output lines are ignored', () async {
