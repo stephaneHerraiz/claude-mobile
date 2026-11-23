@@ -34,7 +34,7 @@ class ProfilesScreen extends ConsumerWidget {
                     ListTile(
                       leading: const Icon(Icons.dns_outlined),
                       title: Text(p.name),
-                      subtitle: Text('${p.user}@${p.host}:${p.port}'),
+                      subtitle: Text(p.address),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => SessionsScreen(profile: p),
@@ -97,10 +97,24 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   final _port = TextEditingController(text: '22');
   final _user = TextEditingController();
   final _key = TextEditingController();
+  final _jumpHost = TextEditingController();
+  final _jumpPort = TextEditingController(text: '22');
+  final _jumpUser = TextEditingController();
+
+  bool get _hasJump => _jumpHost.text.trim().isNotEmpty;
 
   @override
   void dispose() {
-    for (final c in [_name, _host, _port, _user, _key]) {
+    for (final c in [
+      _name,
+      _host,
+      _port,
+      _user,
+      _key,
+      _jumpHost,
+      _jumpPort,
+      _jumpUser,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -125,6 +139,13 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
             host: _host.text.trim(),
             port: int.parse(_port.text.trim()),
             user: _user.text.trim(),
+            jump: _hasJump
+                ? JumpHost(
+                    host: _jumpHost.text.trim(),
+                    port: int.parse(_jumpPort.text.trim()),
+                    user: _jumpUser.text.trim(),
+                  )
+                : null,
           ),
           privateKeyPem: _key.text.trim(),
         );
@@ -138,48 +159,78 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
       appBar: AppBar(title: const Text('New profile')),
       body: Form(
         key: _form,
-        child: ListView(
+        // Not a lazy list: every field must exist to be validated.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _name,
-              decoration: const InputDecoration(labelText: 'Name'),
-              validator: _required,
-            ),
-            TextFormField(
-              controller: _host,
-              decoration: const InputDecoration(labelText: 'Host'),
-              autocorrect: false,
-              keyboardType: TextInputType.url,
-              validator: _required,
-            ),
-            TextFormField(
-              controller: _port,
-              decoration: const InputDecoration(labelText: 'Port'),
-              keyboardType: TextInputType.number,
-              validator: _validPort,
-            ),
-            TextFormField(
-              controller: _user,
-              decoration: const InputDecoration(labelText: 'User'),
-              autocorrect: false,
-              validator: _required,
-            ),
-            TextFormField(
-              controller: _key,
-              decoration: const InputDecoration(
-                labelText: 'Private key (PEM)',
-                helperText: 'Stored only in this phone\'s secure storage.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _name,
+                decoration: const InputDecoration(labelText: 'Name'),
+                validator: _required,
               ),
-              autocorrect: false,
-              enableSuggestions: false,
-              minLines: 3,
-              maxLines: 6,
-              validator: _required,
-            ),
-            const SizedBox(height: 24),
-            FilledButton(onPressed: _save, child: const Text('Save')),
-          ],
+              TextFormField(
+                controller: _host,
+                decoration: const InputDecoration(labelText: 'Host'),
+                autocorrect: false,
+                keyboardType: TextInputType.url,
+                validator: _required,
+              ),
+              TextFormField(
+                controller: _port,
+                decoration: const InputDecoration(labelText: 'Port'),
+                keyboardType: TextInputType.number,
+                validator: _validPort,
+              ),
+              TextFormField(
+                controller: _user,
+                decoration: const InputDecoration(labelText: 'User'),
+                autocorrect: false,
+                validator: _required,
+              ),
+              TextFormField(
+                controller: _jumpHost,
+                decoration: const InputDecoration(
+                  labelText: 'Jump host (optional)',
+                  helperText:
+                      'A server to go through when the host is not reachable '
+                      'directly. The same key is used on both.',
+                  helperMaxLines: 2,
+                ),
+                autocorrect: false,
+                keyboardType: TextInputType.url,
+              ),
+              TextFormField(
+                controller: _jumpPort,
+                decoration: const InputDecoration(labelText: 'Jump port'),
+                keyboardType: TextInputType.number,
+                validator: (v) => _hasJump ? _validPort(v) : null,
+              ),
+              TextFormField(
+                controller: _jumpUser,
+                decoration: const InputDecoration(labelText: 'Jump user'),
+                autocorrect: false,
+                validator: (v) => _hasJump && _required(v) != null
+                    ? 'Required with a jump host'
+                    : null,
+              ),
+              TextFormField(
+                controller: _key,
+                decoration: const InputDecoration(
+                  labelText: 'Private key (PEM)',
+                  helperText: 'Stored only in this phone\'s secure storage.',
+                ),
+                autocorrect: false,
+                enableSuggestions: false,
+                minLines: 3,
+                maxLines: 6,
+                validator: _required,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(onPressed: _save, child: const Text('Save')),
+            ],
+          ),
         ),
       ),
     );

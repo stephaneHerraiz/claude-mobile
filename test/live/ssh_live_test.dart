@@ -78,6 +78,60 @@ void main() {
     );
   }, skip: skip);
 
+  test('reaches the server through a jump host', () async {
+    final viaJump = Profile(
+      id: 'hop',
+      name: 'hop',
+      host: host!,
+      port: profile.port,
+      user: profile.user,
+      jump: JumpHost(
+        host: host,
+        port: int.parse(env['LIVE_SSH_JUMP_PORT']!),
+        user: profile.user,
+      ),
+    );
+    final hop = DartSsh2Service(store);
+    addTearDown(hop.disconnect);
+    await hop.connect(viaJump, key);
+    expect(await hop.run('echo through'), 'through\n');
+    // Two different servers answered, each pinned under its own entry.
+    expect(store.data['hostkey:hop'], store.data['hostkey:live']);
+    expect(store.data['hostkey:hop:jump'], isNotNull);
+    expect(store.data['hostkey:hop:jump'], isNot(store.data['hostkey:hop']));
+
+    final c = SessionController(hop, sessionId: null, cwd: cwd);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    c.approve();
+    await until(c, (s) => !s.busy && s.costUsd > 0);
+    expect(c.value.items.whereType<ToolItem>().single.status, ToolStatus.done);
+  }, skip: skip);
+
+  test('refuses a jump host whose key changed', () async {
+    store.data['hostkey:hop:jump'] = 'ssh-ed25519 00';
+    final viaJump = Profile(
+      id: 'hop',
+      name: 'hop',
+      host: host!,
+      port: profile.port,
+      user: profile.user,
+      jump: JumpHost(
+        host: host,
+        port: int.parse(env['LIVE_SSH_JUMP_PORT']!),
+        user: profile.user,
+      ),
+    );
+    final hop = DartSsh2Service(store);
+    await expectLater(
+      hop.connect(viaJump, key),
+      throwsA(isA<HostKeyMismatch>()),
+    );
+    expect(hop.isConnected, isFalse);
+  }, skip: skip);
+
   test('lists sessions with their title and directory', () async {
     final sessions = await loadSessions(ssh, DateTime.now());
     final s = sessions.firstWhere((s) => s.id.startsWith('11111111'));
@@ -103,10 +157,10 @@ void main() {
     final tool = items.whereType<ToolItem>().single;
     expect(tool.status, ToolStatus.done);
     expect(tool.output, 'ok');
-    expect(
-      items.whereType<AssistantTextItem>().map((i) => i.text),
-      ['Working', 'Done.'],
-    );
+    expect(items.whereType<AssistantTextItem>().map((i) => i.text), [
+      'Working',
+      'Done.',
+    ]);
     expect(c.value.sessionId, isNotNull);
   }, skip: skip);
 

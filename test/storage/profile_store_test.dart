@@ -66,4 +66,40 @@ void main() {
     await kv.write('profiles', 'not json');
     expect(await store.list(), isEmpty);
   });
+
+  const viaJump = Profile(
+    id: 'p2',
+    name: 'pod',
+    host: '10.43.200.23',
+    port: 2222,
+    user: 'herraiz',
+    jump: JumpHost(host: 'server1.test', port: 22, user: 'stephane'),
+  );
+
+  test('a jump host survives a save', () async {
+    await store.save(viaJump, privateKeyPem: pem);
+    final jump = (await store.list()).single.jump!;
+    expect(jump.host, 'server1.test');
+    expect(jump.port, 22);
+    expect(jump.user, 'stephane');
+  });
+
+  test('a profile saved before jump hosts existed still loads', () {
+    final p = Profile.fromJson({
+      'id': 'old',
+      'name': 'old',
+      'host': 'h',
+      'port': 22,
+      'user': 'u',
+    });
+    expect(p.jump, isNull);
+    expect(p.toJson().containsKey('jump'), isFalse);
+  });
+
+  test('remove also forgets the pinned jump host key', () async {
+    await store.save(viaJump, privateKeyPem: pem);
+    await kv.write(jumpHostKeyEntry('p2'), 'ssh-ed25519 aa');
+    await store.remove('p2');
+    expect(kv.data.keys.where((k) => k.contains('p2')), isEmpty);
+  });
 }

@@ -27,6 +27,10 @@ class SecureKeyValueStore implements KeyValueStore {
 
 String hostKeyEntry(String profileId) => 'hostkey:$profileId';
 
+/// Host keys are pinned under a profile id; the jump host has its own.
+String jumpId(String profileId) => '$profileId:jump';
+String jumpHostKeyEntry(String profileId) => hostKeyEntry(jumpId(profileId));
+
 class ProfileStore {
   ProfileStore(this._kv);
   final KeyValueStore _kv;
@@ -60,6 +64,7 @@ class ProfileStore {
     await _writeProfiles((await list()).where((p) => p.id != profileId));
     await _kv.delete(_keyEntry(profileId));
     await _kv.delete(hostKeyEntry(profileId));
+    await _kv.delete(jumpHostKeyEntry(profileId));
   }
 
   Future<void> _writeProfiles(Iterable<Profile> profiles) => _kv.write(

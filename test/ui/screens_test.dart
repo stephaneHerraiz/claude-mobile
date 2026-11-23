@@ -57,13 +57,66 @@ void main() {
       find.widgetWithText(TextFormField, 'Private key (PEM)'),
       'PEMDATA',
     );
+    await t.ensureVisible(find.text('Save'));
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
     expect(find.text('pro'), findsOneWidget);
     final saved = (await ProfileStore(kv).list()).single;
     expect(saved.host, 'work.test');
     expect(saved.port, 22);
+    expect(saved.jump, isNull);
     expect(await ProfileStore(kv).privateKey(saved.id), 'PEMDATA');
+  });
+
+  Future<void> fillForm(WidgetTester t) async {
+    await t.tap(find.byTooltip('Add profile'));
+    await t.pumpAndSettle();
+    Future<void> type(String label, String text) =>
+        t.enterText(find.widgetWithText(TextFormField, label), text);
+    await type('Name', 'pod');
+    await type('Host', '10.43.200.23');
+    await type('User', 'herraiz');
+    await type('Private key (PEM)', 'PEMDATA');
+  }
+
+  testWidgets('saves a profile that goes through a jump host', (t) async {
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await fillForm(t);
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Jump host (optional)'),
+      'server1.test',
+    );
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Jump user'),
+      'stephane',
+    );
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(
+      find.text('herraiz@10.43.200.23:22 via server1.test'),
+      findsOneWidget,
+    );
+    final jump = (await ProfileStore(kv).list()).single.jump!;
+    expect(jump.host, 'server1.test');
+    expect(jump.port, 22);
+    expect(jump.user, 'stephane');
+  });
+
+  testWidgets('a jump host without a user is refused', (t) async {
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await fillForm(t);
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Jump host (optional)'),
+      'server1.test',
+    );
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(find.text('Required with a jump host'), findsOneWidget);
+    expect(await ProfileStore(kv).list(), isEmpty);
   });
 
   testWidgets('the form refuses a missing host or key', (t) async {
@@ -71,9 +124,11 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byTooltip('Add profile'));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Save'));
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
     expect(find.text('Required'), findsWidgets);
+    expect(find.text('Required with a jump host'), findsNothing);
     expect(await ProfileStore(kv).list(), isEmpty);
   });
 
