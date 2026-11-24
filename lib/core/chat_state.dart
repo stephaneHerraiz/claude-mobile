@@ -151,19 +151,22 @@ ChatState addUserMessage(ChatState s, String text) =>
 ChatState permissionAnswered(ChatState s) =>
     s._copy(pendingQueue: s.pendingQueue.skip(1).toList());
 
-/// The transport dropped: nothing is running or waiting any more.
-ChatState connectionLost(ChatState s) => s._copy(
+/// The remote process is gone: nothing is running or waiting any more.
+ChatState turnAbandoned(ChatState s) => s._copy(
   items: [
     for (final i in _settled(s.items))
       if (i is ToolItem && i.status == ToolStatus.running)
         i._with(ToolStatus.error, 'Interrupted')
       else
         i,
-    const NoticeItem('Connection lost'),
   ],
   pendingQueue: const [],
   busy: false,
 );
+
+/// The transport dropped under the remote process.
+ChatState connectionLost(ChatState s) =>
+    addNotice(turnAbandoned(s), 'Connection lost');
 
 List<ChatItem> _settled(List<ChatItem> items) => [
   for (final i in items)

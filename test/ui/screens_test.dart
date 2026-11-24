@@ -4,6 +4,7 @@ import 'package:claude_mobile/state/providers.dart';
 import 'package:claude_mobile/storage/profile_store.dart';
 import 'package:claude_mobile/ui/profiles_screen.dart';
 import 'package:claude_mobile/ui/sessions_screen.dart';
+import 'package:claude_mobile/ui/theme.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,6 +48,72 @@ void main() {
     expect(find.text('Profiles'), findsOneWidget);
     expect(find.text('perso'), findsOneWidget);
     expect(find.text('me@example.org:22'), findsOneWidget);
+  });
+
+  testWidgets('profiles are separated by lines', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    await ProfileStore(kv).save(
+      const Profile(id: 'p2', name: 'pro', host: 'h', port: 22, user: 'u'),
+      privateKeyPem: 'k',
+    );
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    expect(find.byType(Divider), findsOneWidget);
+  });
+
+  testWidgets('sessions of a directory are separated by lines', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    ssh.runResults = {
+      listSessionsCommand:
+          '3.0 /p/-a/s1.jsonl\n2.0 /p/-a/s2.jsonl\n1.0 /p/-a/s3.jsonl\n',
+      for (final id in ['s1', 's2', 's3'])
+        headCommand('/p/-a/$id.jsonl'):
+            '{"type":"user","cwd":"/a","message":{"content":"task $id"}}\n'
+            '{"type":"ai-title","aiTitle":"Name of $id"}\n',
+    };
+    await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+    await t.pumpAndSettle();
+    expect(find.text('Name of s2'), findsOneWidget);
+    expect(find.text('task s2'), findsNothing);
+    expect(find.byType(Divider), findsNWidgets(2));
+  });
+
+  testWidgets('every session is ruled off, across directories too, and its '
+      'name stands out more than the directory', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    ssh.runResults = {
+      listSessionsCommand:
+          '3.0 /p/-a/s1.jsonl\n2.0 /p/-b/s2.jsonl\n1.0 /p/-c/s3.jsonl\n',
+      for (final (id, dir) in [('s1', 'a'), ('s2', 'b'), ('s3', 'c')])
+        headCommand('/p/-$dir/$id.jsonl'):
+            '{"type":"user","cwd":"/$dir","message":{"content":"x"}}\n'
+            '{"type":"ai-title","aiTitle":"Name of $id"}\n',
+    };
+    await t.pumpWidget(
+      ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(kv),
+          sshFactoryProvider.overrideWithValue(() => ssh),
+        ],
+        child: MaterialApp(
+          theme: terminalTheme,
+          home: const SessionsScreen(profile: perso),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+    // One session per directory: still a line between each of the three.
+    expect(find.byType(Divider), findsNWidgets(2));
+
+    TextStyle style(String text) =>
+        DefaultTextStyle.of(t.element(find.text(text))).style
+            .merge(t.widget<Text>(find.text(text)).style);
+    final name = style('Name of s1');
+    final directory = style('/a');
+    expect(name.color, TerminalColors.green);
+    expect(name.fontWeight, FontWeight.bold);
+    expect(directory.color, isNot(TerminalColors.green));
+    expect(directory.fontSize!, lessThan(name.fontSize!));
   });
 
   testWidgets('adding a profile stores it with its key', (t) async {

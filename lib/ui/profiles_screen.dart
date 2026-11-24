@@ -6,6 +6,7 @@ import '../ssh/key.dart';
 import '../ssh/profile.dart';
 import '../state/providers.dart';
 import 'sessions_screen.dart';
+import 'terminal_widgets.dart';
 
 class ProfilesScreen extends ConsumerWidget {
   const ProfilesScreen({super.key});
@@ -14,7 +15,7 @@ class ProfilesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profiles = ref.watch(profilesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Profiles')),
+      appBar: AppBar(title: const TermTitle('Profiles')),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Add profile',
         onPressed: () => Navigator.of(context).push(
@@ -27,11 +28,12 @@ class ProfilesScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('$e')),
         data: (list) => list.isEmpty
             ? const Center(
-                child: Text('No profile yet. Add one to reach a server.'),
+                child: TermLine('No profile yet. Add one to reach a server.'),
               )
             : ListView(
                 children: [
-                  for (final p in list)
+                  for (final (i, p) in list.indexed) ...[
+                    if (i > 0) const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.dns_outlined),
                       title: Text(p.name),
@@ -47,6 +49,7 @@ class ProfilesScreen extends ConsumerWidget {
                         onPressed: () => _confirmDelete(context, ref, p),
                       ),
                     ),
+                  ],
                 ],
               ),
       ),
@@ -168,7 +171,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New profile')),
+      appBar: AppBar(title: const TermTitle('New profile')),
       body: Form(
         key: _form,
         // Not a lazy list: every field must exist to be validated.
@@ -182,6 +185,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 decoration: const InputDecoration(labelText: 'Name'),
                 validator: _required,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _host,
                 decoration: const InputDecoration(labelText: 'Host'),
@@ -189,18 +193,21 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 keyboardType: TextInputType.url,
                 validator: _required,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _port,
                 decoration: const InputDecoration(labelText: 'Port'),
                 keyboardType: TextInputType.number,
                 validator: _validPort,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _user,
                 decoration: const InputDecoration(labelText: 'User'),
                 autocorrect: false,
                 validator: _required,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _jumpHost,
                 decoration: const InputDecoration(
@@ -213,12 +220,14 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 autocorrect: false,
                 keyboardType: TextInputType.url,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _jumpPort,
                 decoration: const InputDecoration(labelText: 'Jump port'),
                 keyboardType: TextInputType.number,
                 validator: (v) => _hasJump ? _validPort(v) : null,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _jumpUser,
                 decoration: const InputDecoration(labelText: 'Jump user'),
@@ -227,6 +236,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                     ? 'Required with a jump host'
                     : null,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _key,
                 decoration: InputDecoration(
@@ -243,6 +253,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 maxLines: 6,
                 validator: _required,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _passphrase,
                 decoration: InputDecoration(

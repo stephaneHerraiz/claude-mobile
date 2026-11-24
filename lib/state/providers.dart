@@ -34,7 +34,7 @@ final sshConnectionProvider = FutureProvider.autoDispose
       // Everything taken from ref comes before the first await: the provider
       // may be disposed while connecting.
       final store = ref.watch(profileStoreProvider);
-      final ssh = ref.watch(sshFactoryProvider)();
+      final ssh = GuardedSsh(ref.watch(sshFactoryProvider)());
       ref.onDispose(ssh.disconnect);
       final profile = (await store.list()).firstWhere((p) => p.id == profileId);
       final key = await store.privateKey(profileId);

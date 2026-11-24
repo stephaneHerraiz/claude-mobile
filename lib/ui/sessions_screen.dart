@@ -5,6 +5,7 @@ import '../core/session_listing.dart';
 import '../ssh/profile.dart';
 import '../state/providers.dart';
 import 'chat_screen.dart';
+import 'terminal_widgets.dart';
 
 class SessionsScreen extends ConsumerWidget {
   const SessionsScreen({super.key, required this.profile});
@@ -101,7 +102,7 @@ class SessionsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(profile.name),
+        title: TermTitle(profile.name),
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -124,7 +125,7 @@ class SessionsScreen extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('$e', textAlign: TextAlign.center),
+                TermLine('$e', fault: true),
                 const SizedBox(height: 16),
                 FilledButton(onPressed: refresh, child: const Text('Retry')),
               ],
@@ -133,26 +134,42 @@ class SessionsScreen extends ConsumerWidget {
         ),
         data: (list) {
           if (list.isEmpty) {
-            return const Center(child: Text('No session on this server yet.'));
+            return const Center(
+              child: TermLine('No session on this server yet.'),
+            );
           }
           final groups = byCwd(list);
+          final scheme = Theme.of(context).colorScheme;
           return ListView(
             padding: const EdgeInsets.only(bottom: 88),
             children: [
-              for (final entry in groups.entries) ...[
+              for (final (g, entry) in groups.entries.indexed) ...[
+                // A line between every session, whatever its directory.
+                if (g > 0) const Divider(height: 1),
+                // The directory only situates the sessions: kept discreet.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Text(
                     entry.key,
-                    style: Theme.of(context).textTheme.labelLarge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
-                for (final s in entry.value)
+                for (final (i, s) in entry.value.indexed) ...[
+                  if (i > 0) const Divider(height: 1),
                   ListTile(
                     title: Text(
                       s.title ?? s.id,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     subtitle: Text(_when(s.modified)),
                     trailing: s.recentlyActive
@@ -163,6 +180,7 @@ class SessionsScreen extends ConsumerWidget {
                         : null,
                     onTap: () => _openSession(context, ref, s),
                   ),
+                ],
               ],
             ],
           );

@@ -1,6 +1,8 @@
 import 'package:local_auth/local_auth.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'terminal_widgets.dart';
+
 /// Device unlock: true/false for the outcome, null when the device has no
 /// lock at all (nothing to gate with).
 Future<bool?> deviceAuthenticate() async {
@@ -62,8 +64,23 @@ class _LockGateState extends State<LockGate> {
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.lock_outline, size: 48),
-                  const SizedBox(height: 16),
+                  Text(
+                    'CLAUDE//MOBILE',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Icon(
+                    Icons.lock_outline,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 12),
+                  const TermLine('Access locked'),
+                  const SizedBox(height: 24),
                   FilledButton(onPressed: _ask, child: const Text('Unlock')),
                 ],
               ),
