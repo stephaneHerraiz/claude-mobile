@@ -2,6 +2,7 @@ import 'package:claude_mobile/core/session_listing.dart';
 import 'package:claude_mobile/ssh/profile.dart';
 import 'package:claude_mobile/state/providers.dart';
 import 'package:claude_mobile/storage/profile_store.dart';
+import 'package:claude_mobile/storage/session_cache.dart';
 import 'package:claude_mobile/ui/profiles_screen.dart';
 import 'package:claude_mobile/ui/sessions_screen.dart';
 import 'package:claude_mobile/ui/theme.dart';
@@ -350,5 +351,96 @@ void main() {
     expect(ssh.opened.single, contains("--resume"));
     expect(ssh.opened.single, contains('s30'));
     expect(ssh.opened.single, contains('/home/me/x'));
+  });
+
+  group('session list cache', () {
+    const listing = '1795188000.0 /p/-x/s1.jsonl\n';
+    const head =
+        '{"type":"user","cwd":"/home/me/x","message":{"content":"fresh title"}}\n';
+
+    SessionInfo cached(String id, String title) => SessionInfo(
+      id: id,
+      path: '/p/-x/$id.jsonl',
+      modified: DateTime(2026, 11, 1),
+      cwd: '/home/me/x',
+      title: title,
+    );
+
+    setUp(() async {
+      await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    });
+
+    testWidgets('the server list is written to the cache', (t) async {
+      ssh.runResults = {
+        listSessionsCommand: listing,
+        headCommand('/p/-x/s1.jsonl'): head,
+      };
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+      final stored = await SessionCache(kv).read('p1');
+      expect(stored.single.id, 's1');
+      expect(stored.single.title, 'fresh title');
+    });
+
+    testWidgets('the cached list shows while the server is slow, then the '
+        'server list replaces it', (t) async {
+      await SessionCache(kv).write('p1', [cached('old', 'cached title')]);
+      ssh.runResults = {
+        listSessionsCommand: listing,
+        headCommand('/p/-x/s1.jsonl'): head,
+      };
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pump();
+      await t.pump();
+      expect(find.text('cached title'), findsOneWidget);
+      await t.pumpAndSettle();
+      expect(find.text('cached title'), findsNothing);
+      expect(find.text('fresh title'), findsOneWidget);
+    });
+
+    testWidgets('the cached list stays, with the error, when the server '
+        'cannot be reached', (t) async {
+      await SessionCache(kv).write('p1', [cached('old', 'cached title')]);
+      ssh.connectError = Exception('no route');
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+      expect(find.text('cached title'), findsOneWidget);
+      expect(find.textContaining('no route'), findsOneWidget);
+    });
+
+    testWidgets('an unreadable cache is ignored', (t) async {
+      kv.data['sessions:p1'] = 'not json';
+      ssh.runResults = {
+        listSessionsCommand: listing,
+        headCommand('/p/-x/s1.jsonl'): head,
+      };
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+      expect(find.text('fresh title'), findsOneWidget);
+    });
+
+    testWidgets('a session started in the app is added to the list and the '
+        'cache', (t) async {
+      ssh.runResults = {
+        listSessionsCommand: listing,
+        headCommand('/p/-x/s1.jsonl'): head,
+      };
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+      await t.tap(find.text('New session'));
+      await t.pumpAndSettle();
+      await t.enterText(find.byType(TextField), '/home/me/new');
+      await t.tap(find.text('Start'));
+      await t.pumpAndSettle();
+      ssh.channels.single.out.add(
+        '{"type":"system","subtype":"init","session_id":"brand-new",'
+        '"cwd":"/home/me/new","model":"m"}',
+      );
+      await t.pumpAndSettle();
+      final stored = await SessionCache(kv).read('p1');
+      expect(stored.first.id, 'brand-new');
+      expect(stored.first.cwd, '/home/me/new');
+      expect(stored.map((s) => s.id), contains('s1'));
+    });
   });
 }
