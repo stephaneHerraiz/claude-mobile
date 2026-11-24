@@ -158,7 +158,8 @@ void main() {
     final sessions = await loadSessions(ssh, DateTime.now());
     final s = sessions.firstWhere((s) => s.id.startsWith('11111111'));
     expect(s.cwd, '/tmp/demo');
-    expect(s.title, 'Fix the login bug');
+    // The name Claude gave the session, not its first message.
+    expect(s.title, 'Login bug');
     final history = parseHistory(await ssh.run(historyCommand(s.path)));
     expect(history.whereType<UserItem>().single.text, 'Fix the login bug');
     expect(history.whereType<AssistantTextItem>().single.text, 'On it.');
