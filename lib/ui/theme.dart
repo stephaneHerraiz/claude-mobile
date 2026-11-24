@@ -75,7 +75,8 @@ ThemeData _build() {
       shape: const Border(bottom: BorderSide(color: TerminalColors.line)),
     ),
     dividerTheme: const DividerThemeData(
-      color: TerminalColors.line,
+      // Brighter than the other rules: this one has to show on a phone.
+      color: TerminalColors.dimGreen,
       thickness: 1,
       space: 1,
     ),
