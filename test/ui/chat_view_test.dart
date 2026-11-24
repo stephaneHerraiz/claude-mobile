@@ -1,6 +1,8 @@
 import 'package:claude_mobile/state/session_controller.dart';
 import 'package:claude_mobile/ui/chat_screen.dart';
 import 'package:claude_mobile/ui/permission_card.dart';
+// ignore: deprecated_member_use, the Markdown package still builds on the framework's Material.
+import 'package:flutter/material.dart' as fm;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -35,10 +37,61 @@ void main() {
         ),
       );
 
+  /// The colour the text [needle] is painted with, or null if not found.
+  Color? paintedColor(WidgetTester t, String needle) {
+    Color? search(InlineSpan span, Color? inherited) {
+      final color = span.style?.color ?? inherited;
+      if (span is! TextSpan) return null;
+      if ((span.text ?? '').contains(needle)) return color;
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        final found = search(child, color);
+        if (found != null) return found;
+      }
+      return null;
+    }
+
+    final roots = [
+      // The Markdown package draws with the framework's own Material widgets.
+      for (final w in t.widgetList<fm.SelectableText>(
+        find.byType(fm.SelectableText),
+      ))
+        if (w.textSpan != null) (w.textSpan!, w.style?.color),
+      for (final w in t.widgetList<RichText>(find.byType(RichText)))
+        (w.text, null),
+    ];
+    for (final (root, inherited) in roots) {
+      final found = search(root, inherited);
+      if (found != null) return found;
+    }
+    return null;
+  }
+
   Future<void> feed(WidgetTester t, List<String> lines) async {
     lines.forEach(ssh.channels.last.out.add);
     await t.pump();
     await t.pump();
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets('assistant text is readable in ${brightness.name} mode', (
+      t,
+    ) async {
+      await controller.start();
+      await t.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(brightness: brightness),
+          home: ChatView(controller: controller, title: 's'),
+        ),
+      );
+      await feed(t, [assistantText]);
+      final color = paintedColor(t, 'Hi there');
+      expect(color, isNotNull);
+      final background = Theme.of(t.element(find.byType(ChatView)))
+          .scaffoldBackgroundColor;
+      final contrast =
+          (color!.computeLuminance() - background.computeLuminance()).abs();
+      expect(contrast, greaterThan(0.5), reason: '$color on $background');
+    });
   }
 
   testWidgets('renders user and assistant items', (t) async {
