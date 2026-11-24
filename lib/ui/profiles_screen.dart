@@ -43,10 +43,24 @@ class ProfilesScreen extends ConsumerWidget {
                           builder: (_) => SessionsScreen(profile: p),
                         ),
                       ),
-                      trailing: IconButton(
-                        tooltip: 'Delete ${p.name}',
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _confirmDelete(context, ref, p),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Edit ${p.name}',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ProfileFormScreen(profile: p),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Delete ${p.name}',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _confirmDelete(context, ref, p),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -87,8 +101,11 @@ class ProfilesScreen extends ConsumerWidget {
   }
 }
 
+/// Adds a profile, or edits [profile] when given.
 class ProfileFormScreen extends ConsumerStatefulWidget {
-  const ProfileFormScreen({super.key});
+  const ProfileFormScreen({super.key, this.profile});
+
+  final Profile? profile;
 
   @override
   ConsumerState<ProfileFormScreen> createState() => _ProfileFormScreenState();
@@ -106,6 +123,24 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   final _jumpHost = TextEditingController();
   final _jumpPort = TextEditingController(text: '22');
   final _jumpUser = TextEditingController();
+
+  Profile? get _editing => widget.profile;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = _editing;
+    if (p == null) return;
+    _name.text = p.name;
+    _host.text = p.host;
+    _port.text = '${p.port}';
+    _user.text = p.user;
+    if (p.jump case final j?) {
+      _jumpHost.text = j.host;
+      _jumpPort.text = '${j.port}';
+      _jumpUser.text = j.user;
+    }
+  }
 
   bool get _hasJump => _jumpHost.text.trim().isNotEmpty;
 
@@ -138,32 +173,38 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   Future<void> _save() async {
     setState(() => _keyError = null);
     if (!_form.currentState!.validate()) return;
-    final String key;
-    try {
-      key = unlockKey(_key.text, _passphrase.text);
-    } on KeyError catch (e) {
-      setState(() => _keyError = e);
-      return;
+    // When editing, an empty key field keeps the key already stored.
+    String? key;
+    if (_editing == null || _key.text.trim().isNotEmpty) {
+      try {
+        key = unlockKey(_key.text, _passphrase.text);
+      } on KeyError catch (e) {
+        setState(() => _keyError = e);
+        return;
+      }
     }
-    await ref
-        .read(profileStoreProvider)
-        .save(
-          Profile(
-            id: const Uuid().v4(),
-            name: _name.text.trim(),
-            host: _host.text.trim(),
-            port: int.parse(_port.text.trim()),
-            user: _user.text.trim(),
-            jump: _hasJump
-                ? JumpHost(
-                    host: _jumpHost.text.trim(),
-                    port: int.parse(_jumpPort.text.trim()),
-                    user: _jumpUser.text.trim(),
-                  )
-                : null,
-          ),
-          privateKeyPem: key,
-        );
+    final profile = Profile(
+      id: _editing?.id ?? const Uuid().v4(),
+      name: _name.text.trim(),
+      host: _host.text.trim(),
+      port: int.parse(_port.text.trim()),
+      user: _user.text.trim(),
+      jump: _hasJump
+          ? JumpHost(
+              host: _jumpHost.text.trim(),
+              port: int.parse(_jumpPort.text.trim()),
+              user: _jumpUser.text.trim(),
+            )
+          : null,
+    );
+    final store = ref.read(profileStoreProvider);
+    if (_editing == null) {
+      await store.save(profile, privateKeyPem: key!);
+    } else {
+      await store.update(profile, privateKeyPem: key);
+      // Drop the live connection: it was opened with the old settings.
+      ref.invalidate(sshConnectionProvider(profile.id));
+    }
     ref.invalidate(profilesProvider);
     if (mounted) Navigator.of(context).pop();
   }
@@ -171,7 +212,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const TermTitle('New profile')),
+      appBar: AppBar(title: const TermTitle(_editing == null ? 'New profile' : 'Edit profile')),
       body: Form(
         key: _form,
         // Not a lazy list: every field must exist to be validated.
@@ -241,7 +282,9 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 controller: _key,
                 decoration: InputDecoration(
                   labelText: 'Private key (PEM)',
-                  helperText: 'Stored only in this phone\'s secure storage.',
+                  helperText: _editing == null
+                      ? 'Stored only in this phone\'s secure storage.'
+                      : 'Leave empty to keep the current key.',
                   errorText: _keyError?.needsPassphrase == false
                       ? _keyError!.message
                       : null,
@@ -251,7 +294,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 enableSuggestions: false,
                 minLines: 3,
                 maxLines: 6,
-                validator: _required,
+                validator: _editing == null ? _required : null,
               ),
               const SizedBox(height: 14),
               TextFormField(
