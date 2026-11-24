@@ -146,7 +146,7 @@ void main() {
     final name = style('Name of s1');
     final directory = style('/a');
     expect(name.color, TerminalColors.green);
-    expect(name.fontWeight, FontWeight.bold);
+    expect(name.fontWeight, isNot(FontWeight.bold));
     expect(directory.color, isNot(TerminalColors.green));
     expect(directory.fontSize!, lessThan(name.fontSize!));
   });

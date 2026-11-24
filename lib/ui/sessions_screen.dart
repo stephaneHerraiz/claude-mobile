@@ -199,10 +199,7 @@ class SessionsScreen extends ConsumerWidget {
                             s.title ?? s.id,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: scheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(color: scheme.primary),
                           ),
                           subtitle: Text(_when(s.modified)),
                           trailing: s.recentlyActive
