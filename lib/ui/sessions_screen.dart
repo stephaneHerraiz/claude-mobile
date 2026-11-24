@@ -139,16 +139,23 @@ class SessionsScreen extends ConsumerWidget {
             );
           }
           final groups = byCwd(list);
+          final scheme = Theme.of(context).colorScheme;
           return ListView(
             padding: const EdgeInsets.only(bottom: 88),
             children: [
-              for (final entry in groups.entries) ...[
+              for (final (g, entry) in groups.entries.indexed) ...[
+                // A line between every session, whatever its directory.
+                if (g > 0) const Divider(height: 1),
+                // The directory only situates the sessions: kept discreet.
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Text(
                     entry.key,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -159,6 +166,10 @@ class SessionsScreen extends ConsumerWidget {
                       s.title ?? s.id,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     subtitle: Text(_when(s.modified)),
                     trailing: s.recentlyActive
