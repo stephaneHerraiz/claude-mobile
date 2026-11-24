@@ -255,4 +255,23 @@ void main() {
     expect(ids, ['req-9', 'req-10']);
     expect(c.value.pending, isNull);
   });
+
+  test(
+    'reattaching drops the request the old process was waiting on',
+    () async {
+      final c = make(sessionId: 'sid-1');
+      await c.start();
+      ssh.channels.last.out.add(permLine);
+      await Future<void>.delayed(Duration.zero);
+      expect(c.value.pending, isNotNull);
+
+      await c.reconnect();
+      expect(ssh.channels.length, 2);
+      // The new process knows nothing of that request: answering it would
+      // write an unknown id, and it would hide the next real request.
+      expect(c.value.pending, isNull);
+      expect(c.value.busy, isFalse);
+      expect(c.value.items.whereType<NoticeItem>(), isEmpty);
+    },
+  );
 }

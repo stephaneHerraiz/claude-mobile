@@ -31,7 +31,8 @@ class ProfilesScreen extends ConsumerWidget {
               )
             : ListView(
                 children: [
-                  for (final p in list)
+                  for (final (i, p) in list.indexed) ...[
+                    if (i > 0) const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.dns_outlined),
                       title: Text(p.name),
@@ -47,6 +48,7 @@ class ProfilesScreen extends ConsumerWidget {
                         onPressed: () => _confirmDelete(context, ref, p),
                       ),
                     ),
+                  ],
                 ],
               ),
       ),

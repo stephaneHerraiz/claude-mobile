@@ -12,17 +12,33 @@ class MarkdownText extends StatelessWidget {
   const MarkdownText(this.data, {super.key});
   final String data;
 
-  static final Map<(Brightness, Color), fm.ThemeData> _themes = {};
+  static final Map<Object, fm.ThemeData> _themes = {};
+
+  static fm.ThemeData _frameworkTheme(ThemeData app) {
+    final base = fm.ThemeData(
+      brightness: app.brightness,
+      colorSchemeSeed: app.colorScheme.primary,
+      fontFamily: app.textTheme.bodyMedium?.fontFamily,
+    );
+    return base.copyWith(
+      textTheme: base.textTheme.apply(
+        bodyColor: app.colorScheme.onSurface,
+        displayColor: app.colorScheme.onSurface,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final key = (theme.brightness, theme.colorScheme.primary);
+    final key = (
+      theme.brightness,
+      theme.colorScheme.primary,
+      theme.colorScheme.onSurface,
+      theme.textTheme.bodyMedium?.fontFamily,
+    );
     return fm.Theme(
-      data: _themes[key] ??= fm.ThemeData(
-        brightness: key.$1,
-        colorSchemeSeed: key.$2,
-      ),
+      data: _themes[key] ??= _frameworkTheme(theme),
       child: MarkdownBody(data: data, selectable: true),
     );
   }
