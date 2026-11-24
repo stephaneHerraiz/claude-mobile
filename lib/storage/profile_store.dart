@@ -57,6 +57,23 @@ class ProfileStore {
     await _writeProfiles([...others, p]);
   }
 
+  /// Replaces the stored profile with the same id. The private key is kept
+  /// unless a new one is given. A pinned host key belongs to an address, so it
+  /// is forgotten when that address changes and pinned again on next connect.
+  Future<void> update(Profile p, {String? privateKeyPem}) async {
+    final all = await list();
+    final old = all.where((o) => o.id == p.id).firstOrNull;
+    if (old == null) throw StateError('No profile ${p.id}');
+    if (privateKeyPem != null) await _kv.write(_keyEntry(p.id), privateKeyPem);
+    if (old.host != p.host || old.port != p.port) {
+      await _kv.delete(hostKeyEntry(p.id));
+    }
+    if (old.jump?.host != p.jump?.host || old.jump?.port != p.jump?.port) {
+      await _kv.delete(jumpHostKeyEntry(p.id));
+    }
+    await _writeProfiles([for (final o in all) o.id == p.id ? p : o]);
+  }
+
   Future<String?> privateKey(String profileId) =>
       _kv.read(_keyEntry(profileId));
 

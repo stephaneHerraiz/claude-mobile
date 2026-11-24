@@ -78,6 +78,40 @@ void main() {
     expect(find.byType(Divider), findsNWidgets(2));
   });
 
+  testWidgets('editing a profile prefills it and keeps its key', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Edit perso'));
+    await t.pumpAndSettle();
+    expect(find.text('Edit profile'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'example.org'), findsOneWidget);
+    await t.enterText(find.widgetWithText(TextFormField, 'perso'), 'renamed');
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final saved = (await ProfileStore(kv).list()).single;
+    expect(saved.id, 'p1');
+    expect(saved.name, 'renamed');
+    expect(await ProfileStore(kv).privateKey('p1'), 'k');
+  });
+
+  testWidgets('editing with a new key replaces the stored one', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Edit perso'));
+    await t.pumpAndSettle();
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Private key (PEM)'),
+      keys.plain,
+    );
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(await ProfileStore(kv).privateKey('p1'), keys.plain.trim());
+  });
+
   testWidgets('every session is ruled off, across directories too, and its '
       'name stands out more than the directory', (t) async {
     await ProfileStore(kv).save(perso, privateKeyPem: 'k');
