@@ -49,6 +49,34 @@ void main() {
     expect(find.text('me@example.org:22'), findsOneWidget);
   });
 
+  testWidgets('profiles are separated by lines', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    await ProfileStore(kv).save(
+      const Profile(id: 'p2', name: 'pro', host: 'h', port: 22, user: 'u'),
+      privateKeyPem: 'k',
+    );
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    expect(find.byType(Divider), findsOneWidget);
+  });
+
+  testWidgets('sessions of a directory are separated by lines', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    ssh.runResults = {
+      listSessionsCommand:
+          '3.0 /p/-a/s1.jsonl\n2.0 /p/-a/s2.jsonl\n1.0 /p/-a/s3.jsonl\n',
+      for (final id in ['s1', 's2', 's3'])
+        headCommand('/p/-a/$id.jsonl'):
+            '{"type":"user","cwd":"/a","message":{"content":"task $id"}}\n'
+            '{"type":"ai-title","aiTitle":"Name of $id"}\n',
+    };
+    await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+    await t.pumpAndSettle();
+    expect(find.text('Name of s2'), findsOneWidget);
+    expect(find.text('task s2'), findsNothing);
+    expect(find.byType(Divider), findsNWidgets(2));
+  });
+
   testWidgets('adding a profile stores it with its key', (t) async {
     await t.pumpWidget(app(const ProfilesScreen()));
     await t.pumpAndSettle();

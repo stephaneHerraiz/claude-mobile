@@ -40,9 +40,6 @@ class SessionController extends ValueNotifier<ChatState> {
         '$session';
   }
 
-  /// How long the server gets to start the command before giving up.
-  static const openTimeout = Duration(seconds: 20);
-
   Future<void>? _starting;
 
   /// Attaches to the remote session. Calls made while one is in flight share
@@ -51,7 +48,11 @@ class SessionController extends ValueNotifier<ChatState> {
       _starting ??= _start().whenComplete(() => _starting = null);
 
   Future<void> _start() async {
-    await _detach();
+    if (_channel != null) {
+      // Leaving a live process: what it was doing or asking is void.
+      await _detach();
+      value = turnAbandoned(value);
+    }
     final resume = value.sessionId ?? _resumeId;
     final claude = buildCommand(
       resumeId: resume,
@@ -62,7 +63,7 @@ class SessionController extends ValueNotifier<ChatState> {
         'bash -lc ${shellQuote('cd ${shellQuote(cwd)} && $claude')}';
     final LineChannel channel;
     try {
-      channel = await _ssh.open(command).timeout(openTimeout);
+      channel = await _ssh.open(command);
     } on Object catch (e) {
       value = addNotice(value, 'Could not start Claude: $e');
       return;
