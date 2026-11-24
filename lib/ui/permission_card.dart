@@ -28,7 +28,12 @@ class PermissionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      color: theme.colorScheme.tertiaryContainer,
+      // The one thing on screen that waits for the user: outlined in the
+      // accent colour, not filled, to stay readable.
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(2)),
+        side: BorderSide(color: theme.colorScheme.tertiary),
+      ),
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 8),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -38,7 +43,9 @@ class PermissionCard extends StatelessWidget {
           children: [
             Text(
               'Claude wants to use ${request.toolName}',
-              style: theme.textTheme.titleSmall,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.tertiary,
+              ),
             ),
             if (request.description.isNotEmpty)
               Padding(
@@ -52,7 +59,8 @@ class PermissionCard extends StatelessWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+                borderRadius: BorderRadius.circular(2),
               ),
               child: SingleChildScrollView(
                 child: Text(
