@@ -5,6 +5,7 @@ import '../core/session_listing.dart';
 import '../ssh/profile.dart';
 import '../state/providers.dart';
 import 'chat_screen.dart';
+import 'terminal_widgets.dart';
 
 class SessionsScreen extends ConsumerWidget {
   const SessionsScreen({super.key, required this.profile});
@@ -101,7 +102,7 @@ class SessionsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(profile.name),
+        title: TermTitle(profile.name),
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -124,7 +125,7 @@ class SessionsScreen extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('$e', textAlign: TextAlign.center),
+                TermLine('$e', fault: true),
                 const SizedBox(height: 16),
                 FilledButton(onPressed: refresh, child: const Text('Retry')),
               ],
@@ -133,7 +134,9 @@ class SessionsScreen extends ConsumerWidget {
         ),
         data: (list) {
           if (list.isEmpty) {
-            return const Center(child: Text('No session on this server yet.'));
+            return const Center(
+              child: TermLine('No session on this server yet.'),
+            );
           }
           final groups = byCwd(list);
           return ListView(

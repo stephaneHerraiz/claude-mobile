@@ -19,6 +19,7 @@ class ClaudeMobileApp extends StatelessWidget {
     return MaterialApp(
       title: 'Claude Mobile',
       theme: terminalTheme,
+      debugShowCheckedModeBanner: false,
       home: LockGate(authenticate: authenticate, child: const ProfilesScreen()),
     );
   }
