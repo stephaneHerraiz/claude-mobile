@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
 
+import '../ssh/key.dart';
 import '../ssh/profile.dart';
 import '../state/providers.dart';
 import 'sessions_screen.dart';
@@ -97,6 +98,8 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   final _port = TextEditingController(text: '22');
   final _user = TextEditingController();
   final _key = TextEditingController();
+  final _passphrase = TextEditingController();
+  KeyError? _keyError;
   final _jumpHost = TextEditingController();
   final _jumpPort = TextEditingController(text: '22');
   final _jumpUser = TextEditingController();
@@ -111,6 +114,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
       _port,
       _user,
       _key,
+      _passphrase,
       _jumpHost,
       _jumpPort,
       _jumpUser,
@@ -129,7 +133,15 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   }
 
   Future<void> _save() async {
+    setState(() => _keyError = null);
     if (!_form.currentState!.validate()) return;
+    final String key;
+    try {
+      key = unlockKey(_key.text, _passphrase.text);
+    } on KeyError catch (e) {
+      setState(() => _keyError = e);
+      return;
+    }
     await ref
         .read(profileStoreProvider)
         .save(
@@ -147,7 +159,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                   )
                 : null,
           ),
-          privateKeyPem: _key.text.trim(),
+          privateKeyPem: key,
         );
     ref.invalidate(profilesProvider);
     if (mounted) Navigator.of(context).pop();
@@ -217,15 +229,32 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
               ),
               TextFormField(
                 controller: _key,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Private key (PEM)',
                   helperText: 'Stored only in this phone\'s secure storage.',
+                  errorText: _keyError?.needsPassphrase == false
+                      ? _keyError!.message
+                      : null,
+                  errorMaxLines: 3,
                 ),
                 autocorrect: false,
                 enableSuggestions: false,
                 minLines: 3,
                 maxLines: 6,
                 validator: _required,
+              ),
+              TextFormField(
+                controller: _passphrase,
+                decoration: InputDecoration(
+                  labelText: 'Key passphrase (if any)',
+                  helperText: 'Used once to unlock the key. It is not stored.',
+                  errorText: _keyError?.needsPassphrase == true
+                      ? _keyError!.message
+                      : null,
+                ),
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
               ),
               const SizedBox(height: 24),
               FilledButton(onPressed: _save, child: const Text('Save')),
