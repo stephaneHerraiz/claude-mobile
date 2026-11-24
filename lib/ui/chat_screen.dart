@@ -172,9 +172,24 @@ class _ItemView extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant),
+              borderRadius: BorderRadius.circular(2),
             ),
-            child: SelectableText(item.text),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // A shell prompt marks what the user typed.
+                Text(
+                  '> ',
+                  style: TextStyle(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Flexible(child: SelectableText(item.text)),
+              ],
+            ),
           ),
         );
       case AssistantTextItem():

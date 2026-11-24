@@ -61,14 +61,23 @@ List<SessionInfo> parseListing(String stdout, DateTime now) {
 
 String shellQuote(String s) => "'${s.replaceAll("'", r"'\''")}'";
 
-/// Reads the start of a session file. Byte-bounded because a single line can
-/// be huge; [withHead] tolerates the truncated last line.
-String headCommand(String path) => 'head -c 65536 ${shellQuote(path)}';
+/// Reads the start of a session file, then the lines that name the session
+/// wherever they are. The start is byte-bounded because a single line can be
+/// huge; [withHead] tolerates the truncated line this leaves.
+String headCommand(String path) {
+  final file = shellQuote(path);
+  return 'head -c 65536 $file; echo; '
+      "grep -aE '\"type\":\"(ai-title|custom-title)\"' $file | tail -n 4";
+}
 
-/// Fills [SessionInfo.cwd] and [SessionInfo.title] from the file's first lines.
+/// Fills [SessionInfo.cwd] and [SessionInfo.title] from the output of
+/// [headCommand]. The title is the session's name as Claude Code shows it:
+/// the one the user chose, else the one Claude gave, else the first message.
 SessionInfo withHead(SessionInfo s, String headOutput) {
   String? cwd;
-  String? title;
+  String? firstMessage;
+  String? aiTitle;
+  String? customTitle;
   for (final line in const LineSplitter().convert(headOutput)) {
     final Object? m;
     try {
@@ -79,8 +88,10 @@ SessionInfo withHead(SessionInfo s, String headOutput) {
     if (m is! Map<String, dynamic>) continue;
     final c = m['cwd'];
     if (cwd == null && c is String && c.isNotEmpty) cwd = c;
-    title ??= _userText(m);
-    if (cwd != null && title != null) break;
+    firstMessage ??= _userText(m);
+    // Names are rewritten as the session goes on: the last one stands.
+    aiTitle = _name(m, 'ai-title', 'aiTitle') ?? aiTitle;
+    customTitle = _name(m, 'custom-title', 'customTitle') ?? customTitle;
   }
   return SessionInfo(
     id: s.id,
@@ -88,8 +99,14 @@ SessionInfo withHead(SessionInfo s, String headOutput) {
     modified: s.modified,
     recentlyActive: s.recentlyActive,
     cwd: cwd ?? s.cwd,
-    title: title ?? s.title,
+    title: customTitle ?? aiTitle ?? firstMessage ?? s.title,
   );
+}
+
+String? _name(Map<String, dynamic> m, String type, String field) {
+  if (m['type'] != type) return null;
+  final name = m[field];
+  return name is String && name.trim().isNotEmpty ? name.trim() : null;
 }
 
 String? _userText(Map<String, dynamic> m) {

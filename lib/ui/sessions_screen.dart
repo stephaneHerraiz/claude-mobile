@@ -144,10 +144,13 @@ class SessionsScreen extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: Text(
                     entry.key,
-                    style: Theme.of(context).textTheme.labelLarge,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                 ),
-                for (final s in entry.value)
+                for (final (i, s) in entry.value.indexed) ...[
+                  if (i > 0) const Divider(height: 1),
                   ListTile(
                     title: Text(
                       s.title ?? s.id,
@@ -163,6 +166,7 @@ class SessionsScreen extends ConsumerWidget {
                         : null,
                     onTap: () => _openSession(context, ref, s),
                   ),
+                ],
               ],
             ],
           );
