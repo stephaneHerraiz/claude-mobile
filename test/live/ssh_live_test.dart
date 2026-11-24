@@ -158,7 +158,8 @@ void main() {
     final sessions = await loadSessions(ssh, DateTime.now());
     final s = sessions.firstWhere((s) => s.id.startsWith('11111111'));
     expect(s.cwd, '/tmp/demo');
-    expect(s.title, 'Fix the login bug');
+    // The name Claude gave the session, not its first message.
+    expect(s.title, 'Login bug');
     final history = parseHistory(await ssh.run(historyCommand(s.path)));
     expect(history.whereType<UserItem>().single.text, 'Fix the login bug');
     expect(history.whereType<AssistantTextItem>().single.text, 'On it.');
@@ -222,6 +223,21 @@ void main() {
     await c.reconnect(ssh: again);
     c.send('b.txt');
     await until(c, (s) => s.pending != null);
+    expect(c.value.sessionId, session);
+  }, skip: skip);
+
+  test('reattaches while the previous channel is still open', () async {
+    final c = SessionController(ssh, sessionId: null, cwd: cwd);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    final session = c.value.sessionId;
+
+    await c.reconnect().timeout(const Duration(seconds: 10));
+    expect(c.connected, isTrue);
+    c.send('b.txt');
+    await until(c, (s) => s.pending?.input['command'] == 'touch b.txt');
     expect(c.value.sessionId, session);
   }, skip: skip);
 

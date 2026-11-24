@@ -63,6 +63,17 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
+  bool _reconnecting = false;
+
+  Future<void> _reconnect() async {
+    setState(() => _reconnecting = true);
+    try {
+      await (widget.onReconnect ?? widget.controller.reconnect)();
+    } finally {
+      if (mounted) setState(() => _reconnecting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
@@ -104,8 +115,10 @@ class _ChatViewState extends State<ChatView> {
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: FilledButton.tonal(
-                      onPressed: widget.onReconnect ?? controller.reconnect,
-                      child: const Text('Reconnect'),
+                      onPressed: _reconnecting ? null : _reconnect,
+                      child: Text(
+                        _reconnecting ? 'Reconnecting…' : 'Reconnect',
+                      ),
                     ),
                   ),
                 Padding(
@@ -159,9 +172,24 @@ class _ItemView extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant),
+              borderRadius: BorderRadius.circular(2),
             ),
-            child: SelectableText(item.text),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // A shell prompt marks what the user typed.
+                Text(
+                  '> ',
+                  style: TextStyle(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Flexible(child: SelectableText(item.text)),
+              ],
+            ),
           ),
         );
       case AssistantTextItem():
@@ -256,6 +284,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
   static const _maxAutoRetries = 5;
+  static const _probeTimeout = Duration(seconds: 5);
 
   SessionController? _controller;
   Object? _error;
@@ -312,21 +341,67 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  /// Reconnects, replacing a dead SSH link first.
-  Future<bool> _reconnect() async {
-    final controller = _controller;
-    if (controller == null) return false;
+  /// Whether the profile's SSH link is up and answering. A link can look up
+  /// long after the network under it is gone, hence the probe.
+  Future<bool> _answers() async {
     try {
-      var ssh = await _ssh();
-      if (!ssh.isConnected) {
-        ref.invalidate(sshConnectionProvider(widget.profile.id));
-        ssh = await _ssh();
-      }
-      await controller.reconnect(ssh: ssh);
-      return controller.connected;
+      final ssh = await _ssh();
+      if (!ssh.isConnected) return false;
+      await ssh.run('true').timeout(_probeTimeout);
+      return true;
     } on Object {
       return false;
     }
+  }
+
+  /// The profile's SSH link if it answers, otherwise a new one. A failed
+  /// attempt stays remembered until it is discarded, which this also does.
+  Future<SshService> _liveSsh({bool knownDead = false}) async {
+    if (!knownDead && await _answers()) return _ssh();
+    ref.invalidate(sshConnectionProvider(widget.profile.id));
+    return _ssh();
+  }
+
+  Future<bool>? _reconnecting;
+
+  /// Reconnects, replacing a dead SSH link first. With [report], a failure
+  /// is written in the conversation instead of staying silent. Callers that
+  /// overlap share one attempt: two would tear down each other's link.
+  Future<bool> _reconnect({bool report = false, bool knownDead = false}) =>
+      _reconnecting ??= _reconnectOnce(
+        report,
+        knownDead,
+      ).whenComplete(() => _reconnecting = null);
+
+  Future<bool> _reconnectOnce(bool report, bool knownDead) async {
+    final controller = _controller;
+    if (controller == null) return false;
+    try {
+      await controller.reconnect(ssh: await _liveSsh(knownDead: knownDead));
+      return controller.connected;
+    } on Object catch (e) {
+      if (report && mounted) controller.notice('Reconnect failed: $e');
+      return false;
+    }
+  }
+
+  /// Back from the background: the phone may have dropped the network while
+  /// asleep without the app being told. Check, and reconnect if needed.
+  Future<void> _wake() async {
+    final controller = _controller;
+    if (controller == null) {
+      if (_error != null) _retryOpen();
+      return;
+    }
+    // Probed here once; the reconnection need not probe the link again.
+    final answers = await _answers();
+    if (controller.connected && answers) return;
+    if (mounted) await _reconnect(knownDead: !answers);
+  }
+
+  void _retryOpen() {
+    ref.invalidate(sshConnectionProvider(widget.profile.id));
+    _open();
   }
 
   void _onChange() {
@@ -359,13 +434,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final controller = _controller;
-    if (state == AppLifecycleState.resumed &&
-        controller != null &&
-        !controller.connected &&
-        !_retrying) {
-      unawaited(_reconnect());
-    }
+    if (state == AppLifecycleState.resumed) unawaited(_wake());
   }
 
   @override
@@ -377,7 +446,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         controller: controller,
         title: title,
         recentlyActive: widget.session?.recentlyActive ?? false,
-        onReconnect: _reconnect,
+        onReconnect: () => _reconnect(report: true),
       );
     }
     return Scaffold(
@@ -393,12 +462,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     Text('$_error', textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () {
-                        ref.invalidate(
-                          sshConnectionProvider(widget.profile.id),
-                        );
-                        _open();
-                      },
+                      onPressed: _retryOpen,
                       child: const Text('Retry'),
                     ),
                   ],

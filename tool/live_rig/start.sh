@@ -18,6 +18,7 @@ echo 'export PATH="$HOME/bin:$PATH"' > "$dir/home/.profile"
 printf '%s\n' \
   '{"type":"user","cwd":"/tmp/demo","sessionId":"11111111-1111-4111-8111-111111111111","message":{"role":"user","content":"Fix the login bug"}}' \
   '{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"text","text":"On it."}]}}' \
+  '{"type":"ai-title","aiTitle":"Login bug","sessionId":"11111111-1111-4111-8111-111111111111"}' \
   > "$dir/home/.claude/projects/-tmp-demo/11111111-1111-4111-8111-111111111111.jsonl"
 sshd="$(command -v sshd || echo /usr/sbin/sshd)"
 # Two servers with distinct host keys: the target, and one to jump through.
