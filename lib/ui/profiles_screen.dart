@@ -212,7 +212,9 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const TermTitle(_editing == null ? 'New profile' : 'Edit profile')),
+      appBar: AppBar(
+        title: TermTitle(_editing == null ? 'New profile' : 'Edit profile'),
+      ),
       body: Form(
         key: _form,
         // Not a lazy list: every field must exist to be validated.
