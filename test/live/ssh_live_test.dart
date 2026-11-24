@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:claude_mobile/core/chat_state.dart';
 import 'package:claude_mobile/core/history.dart';
+import 'package:claude_mobile/ssh/key.dart';
 import 'package:claude_mobile/ssh/profile.dart';
 import 'package:claude_mobile/ssh/ssh_service.dart';
 import 'package:claude_mobile/state/session_controller.dart';
@@ -130,6 +131,27 @@ void main() {
       throwsA(isA<HostKeyMismatch>()),
     );
     expect(hop.isConnected, isFalse);
+  }, skip: skip);
+
+  test('logs in with a key unlocked from its passphrase', () async {
+    final dir = Directory.systemTemp.createTempSync('claude_mobile_live');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final copy = File('${dir.path}/key')..writeAsStringSync(key);
+    Process.runSync('chmod', ['600', copy.path]);
+    final r = Process.runSync('ssh-keygen', [
+      ...['-q', '-p', '-N', 'correct horse', '-f', copy.path],
+    ]);
+    expect(r.exitCode, 0, reason: '${r.stderr}');
+    final protected = copy.readAsStringSync();
+    await expectLater(
+      DartSsh2Service(MemoryStore()).connect(profile, protected),
+      throwsA(anything),
+    );
+
+    final unlocked = DartSsh2Service(MemoryStore());
+    addTearDown(unlocked.disconnect);
+    await unlocked.connect(profile, unlockKey(protected, 'correct horse'));
+    expect(await unlocked.run('echo in'), 'in\n');
   }, skip: skip);
 
   test('lists sessions with their title and directory', () async {
