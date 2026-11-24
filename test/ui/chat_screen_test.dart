@@ -1,9 +1,11 @@
 import 'package:claude_mobile/core/history.dart';
 import 'package:claude_mobile/core/session_listing.dart';
 import 'package:claude_mobile/ssh/profile.dart';
+import 'package:claude_mobile/ssh/ssh_service.dart';
 import 'package:claude_mobile/state/providers.dart';
 import 'package:claude_mobile/storage/profile_store.dart';
 import 'package:claude_mobile/ui/chat_screen.dart';
+import 'package:claude_mobile/ui/sessions_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -84,6 +86,96 @@ void main() {
     await t.pumpWidget(app(const ChatScreen(profile: perso, cwd: '/w')));
     await t.pumpAndSettle();
     expect(find.text('Retry'), findsOneWidget);
+  });
+
+  group('Retry button', () {
+    late List<FakeSsh> links;
+
+    Widget failingFirst(Widget home, {void Function(FakeSsh)? first}) {
+      links = [];
+      return ProviderScope(
+        overrides: [
+          keyValueStoreProvider.overrideWithValue(kv),
+          sshFactoryProvider.overrideWithValue(() {
+            final link = FakeSsh();
+            if (links.isEmpty) {
+              (first ?? (l) => l.connectError = 'no route')(link);
+            }
+            links.add(link);
+            return link;
+          }),
+        ],
+        child: MaterialApp(home: home),
+      );
+    }
+
+    testWidgets('opens the chat once the server is reachable', (t) async {
+      await t.pumpWidget(
+        failingFirst(const ChatScreen(profile: perso, cwd: '/w')),
+      );
+      await t.pumpAndSettle();
+      expect(find.textContaining('no route'), findsOneWidget);
+
+      await t.tap(find.text('Retry'));
+      await t.pumpAndSettle();
+      expect(find.text('Retry'), findsNothing);
+      expect(find.byTooltip('Send'), findsOneWidget);
+      expect(links.last.opened.single, contains('claude'));
+    });
+
+    testWidgets('a chat on a link where nothing answers can be revived', (
+      t,
+    ) async {
+      await t.pumpWidget(
+        failingFirst(
+          ChatScreen(profile: perso, session: session, cwd: '/w'),
+          first: (l) => l.hang = true,
+        ),
+      );
+      // History, then starting Claude, each give up after their time limit.
+      await t.pump(const Duration(seconds: 31));
+      await t.pump(const Duration(seconds: 21));
+      await t.pumpAndSettle();
+      expect(find.text('History unavailable'), findsOneWidget);
+      expect(find.textContaining('did not answer in time'), findsOneWidget);
+
+      await t.tap(find.text('Reconnect'));
+      await t.pump(const Duration(seconds: 6));
+      await t.pumpAndSettle();
+      expect(find.text('Reconnect'), findsNothing);
+      expect(links.length, 2);
+      // The abandoned probe on the dead link still has its own limit to run.
+      await t.pump(GuardedSsh.runTimeout);
+    });
+
+    testWidgets('lists the sessions once the server is reachable', (t) async {
+      await t.pumpWidget(failingFirst(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+      expect(find.textContaining('no route'), findsOneWidget);
+
+      await t.tap(find.text('Retry'));
+      await t.pumpAndSettle();
+      expect(find.text('Retry'), findsNothing);
+      expect(links.length, 2);
+    });
+
+    testWidgets('gives up on a session list that never answers', (t) async {
+      await t.pumpWidget(
+        failingFirst(
+          const SessionsScreen(profile: perso),
+          first: (l) => l.hang = true,
+        ),
+      );
+      await t.pump(const Duration(seconds: 40));
+      await t.pumpAndSettle();
+      expect(find.text('Retry'), findsOneWidget);
+
+      await t.tap(find.text('Retry'));
+      await t.pump(const Duration(seconds: 40));
+      await t.pumpAndSettle();
+      expect(find.text('Retry'), findsNothing);
+      expect(links.length, 2);
+    });
   });
 
   group('Reconnect button', () {

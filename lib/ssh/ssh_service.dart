@@ -44,6 +44,57 @@ class HostKeyMismatch implements Exception {
       'Remove and re-add the profile if this is expected.';
 }
 
+/// The server stopped answering.
+class SshTimeout implements Exception {
+  const SshTimeout(this.what);
+  final String what;
+
+  @override
+  String toString() => 'The server did not answer in time ($what).';
+}
+
+/// Bounds every wait on [inner]. A link whose network is gone can look up
+/// for a long time: without a limit the app would wait on it for ever.
+class GuardedSsh implements SshService {
+  GuardedSsh(this.inner);
+  final SshService inner;
+
+  static const connectTimeout = Duration(seconds: 30);
+  static const runTimeout = Duration(seconds: 30);
+  static const openTimeout = Duration(seconds: 20);
+
+  static Future<T> _within<T>(Future<T> f, Duration limit, String what) =>
+      f.timeout(limit, onTimeout: () => throw SshTimeout(what));
+
+  @override
+  Future<void> connect(Profile p, String privateKeyPem) async {
+    try {
+      await _within(
+        inner.connect(p, privateKeyPem),
+        connectTimeout,
+        'connecting',
+      );
+    } on SshTimeout {
+      await inner.disconnect();
+      rethrow;
+    }
+  }
+
+  @override
+  bool get isConnected => inner.isConnected;
+
+  @override
+  Future<String> run(String command) =>
+      _within(inner.run(command), runTimeout, 'running a command');
+
+  @override
+  Future<LineChannel> open(String command) =>
+      _within(inner.open(command), openTimeout, 'starting Claude');
+
+  @override
+  Future<void> disconnect() => inner.disconnect();
+}
+
 /// Reconnection delay: 1 s, 2 s, 4 s, … capped at 30 s.
 Duration backoff(int attempt) {
   if (attempt >= 5) return const Duration(seconds: 30);
