@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -11,6 +10,7 @@ import '../ssh/profile.dart';
 import '../ssh/ssh_service.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import 'markdown_text.dart';
 import 'permission_card.dart';
 
 /// The conversation itself; knows nothing about how it is connected.
@@ -167,7 +167,7 @@ class _ItemView extends StatelessWidget {
       case AssistantTextItem():
         return Padding(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-          child: MarkdownBody(data: item.text, selectable: true),
+          child: MarkdownText(item.text),
         );
       case ToolItem():
         return _ToolTile(item);

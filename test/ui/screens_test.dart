@@ -4,11 +4,13 @@ import 'package:claude_mobile/state/providers.dart';
 import 'package:claude_mobile/storage/profile_store.dart';
 import 'package:claude_mobile/ui/profiles_screen.dart';
 import 'package:claude_mobile/ui/sessions_screen.dart';
+import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../support/fakes.dart';
+import '../support/keys.dart';
 
 const perso = Profile(
   id: 'p1',
@@ -21,6 +23,9 @@ const perso = Profile(
 void main() {
   late MemoryStore kv;
   late FakeSsh ssh;
+
+  late TestKeys keys;
+  setUpAll(() => keys = TestKeys.generate());
 
   setUp(() {
     kv = MemoryStore();
@@ -55,15 +60,121 @@ void main() {
     await t.enterText(find.widgetWithText(TextFormField, 'User'), 'steph');
     await t.enterText(
       find.widgetWithText(TextFormField, 'Private key (PEM)'),
-      'PEMDATA',
+      keys.plain,
     );
+    await t.ensureVisible(find.text('Save'));
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
     expect(find.text('pro'), findsOneWidget);
     final saved = (await ProfileStore(kv).list()).single;
     expect(saved.host, 'work.test');
     expect(saved.port, 22);
-    expect(await ProfileStore(kv).privateKey(saved.id), 'PEMDATA');
+    expect(saved.jump, isNull);
+    expect(await ProfileStore(kv).privateKey(saved.id), keys.plain.trim());
+  });
+
+  Future<void> fillForm(WidgetTester t) async {
+    await t.tap(find.byTooltip('Add profile'));
+    await t.pumpAndSettle();
+    Future<void> type(String label, String text) =>
+        t.enterText(find.widgetWithText(TextFormField, label), text);
+    await type('Name', 'pod');
+    await type('Host', '10.43.200.23');
+    await type('User', 'herraiz');
+    await type('Private key (PEM)', keys.plain);
+  }
+
+  Future<void> save(WidgetTester t) async {
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+  }
+
+  testWidgets('a protected key is stored unlocked by its passphrase', (
+    t,
+  ) async {
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await fillForm(t);
+    final keyField = find.widgetWithText(TextFormField, 'Private key (PEM)');
+    final passField = find.widgetWithText(
+      TextFormField,
+      'Key passphrase (if any)',
+    );
+    await t.enterText(keyField, keys.encrypted);
+
+    await save(t);
+    expect(
+      find.text('This key is protected: enter its passphrase.'),
+      findsOneWidget,
+    );
+    expect(await ProfileStore(kv).list(), isEmpty);
+
+    await t.enterText(passField, 'nope');
+    await save(t);
+    expect(find.text('Wrong passphrase.'), findsOneWidget);
+    expect(await ProfileStore(kv).list(), isEmpty);
+
+    await t.enterText(passField, TestKeys.passphrase);
+    await save(t);
+    final saved = (await ProfileStore(kv).list()).single;
+    final stored = (await ProfileStore(kv).privateKey(saved.id))!;
+    expect(SSHKeyPair.isEncryptedPem(stored), isFalse);
+    // The passphrase itself is kept nowhere.
+    expect(kv.data.values.join(), isNot(contains(TestKeys.passphrase)));
+  });
+
+  testWidgets('text that is not a private key is refused', (t) async {
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await fillForm(t);
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Private key (PEM)'),
+      'ssh-ed25519 AAAA me@pc',
+    );
+    await save(t);
+    expect(find.textContaining('This is not a private key'), findsOneWidget);
+    expect(await ProfileStore(kv).list(), isEmpty);
+  });
+
+  testWidgets('saves a profile that goes through a jump host', (t) async {
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await fillForm(t);
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Jump host (optional)'),
+      'server1.test',
+    );
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Jump user'),
+      'stephane',
+    );
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(
+      find.text('herraiz@10.43.200.23:22 via server1.test'),
+      findsOneWidget,
+    );
+    final jump = (await ProfileStore(kv).list()).single.jump!;
+    expect(jump.host, 'server1.test');
+    expect(jump.port, 22);
+    expect(jump.user, 'stephane');
+  });
+
+  testWidgets('a jump host without a user is refused', (t) async {
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await fillForm(t);
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Jump host (optional)'),
+      'server1.test',
+    );
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(find.text('Required with a jump host'), findsOneWidget);
+    expect(await ProfileStore(kv).list(), isEmpty);
   });
 
   testWidgets('the form refuses a missing host or key', (t) async {
@@ -71,9 +182,11 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byTooltip('Add profile'));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Save'));
     await t.tap(find.text('Save'));
     await t.pumpAndSettle();
     expect(find.text('Required'), findsWidgets);
+    expect(find.text('Required with a jump host'), findsNothing);
     expect(await ProfileStore(kv).list(), isEmpty);
   });
 
