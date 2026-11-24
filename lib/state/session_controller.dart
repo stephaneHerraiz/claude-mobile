@@ -48,7 +48,11 @@ class SessionController extends ValueNotifier<ChatState> {
       _starting ??= _start().whenComplete(() => _starting = null);
 
   Future<void> _start() async {
-    await _detach();
+    if (_channel != null) {
+      // Leaving a live process: what it was doing or asking is void.
+      await _detach();
+      value = turnAbandoned(value);
+    }
     final resume = value.sessionId ?? _resumeId;
     final claude = buildCommand(
       resumeId: resume,

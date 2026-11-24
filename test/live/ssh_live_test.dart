@@ -225,6 +225,21 @@ void main() {
     expect(c.value.sessionId, session);
   }, skip: skip);
 
+  test('reattaches while the previous channel is still open', () async {
+    final c = SessionController(ssh, sessionId: null, cwd: cwd);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    final session = c.value.sessionId;
+
+    await c.reconnect().timeout(const Duration(seconds: 10));
+    expect(c.connected, isTrue);
+    c.send('b.txt');
+    await until(c, (s) => s.pending?.input['command'] == 'touch b.txt');
+    expect(c.value.sessionId, session);
+  }, skip: skip);
+
   test('says so when the directory does not exist', () async {
     final c = SessionController(ssh, sessionId: null, cwd: '/no/such/dir');
     addTearDown(c.dispose);
