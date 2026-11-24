@@ -63,6 +63,17 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
+  bool _reconnecting = false;
+
+  Future<void> _reconnect() async {
+    setState(() => _reconnecting = true);
+    try {
+      await (widget.onReconnect ?? widget.controller.reconnect)();
+    } finally {
+      if (mounted) setState(() => _reconnecting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
@@ -104,8 +115,10 @@ class _ChatViewState extends State<ChatView> {
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: FilledButton.tonal(
-                      onPressed: widget.onReconnect ?? controller.reconnect,
-                      child: const Text('Reconnect'),
+                      onPressed: _reconnecting ? null : _reconnect,
+                      child: Text(
+                        _reconnecting ? 'Reconnecting…' : 'Reconnect',
+                      ),
                     ),
                   ),
                 Padding(
@@ -256,6 +269,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
   static const _maxAutoRetries = 5;
+  static const _probeTimeout = Duration(seconds: 5);
 
   SessionController? _controller;
   Object? _error;
@@ -312,19 +326,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  /// Reconnects, replacing a dead SSH link first.
-  Future<bool> _reconnect() async {
+  /// The profile's SSH link if it answers, otherwise a new one. A link can
+  /// look up long after the network under it is gone, and a failed attempt
+  /// stays remembered until it is discarded: both are replaced here.
+  Future<SshService> _liveSsh() async {
+    try {
+      final ssh = await _ssh();
+      if (ssh.isConnected) {
+        await ssh.run('true').timeout(_probeTimeout);
+        return ssh;
+      }
+    } on Object {
+      // Fall through to a fresh connection.
+    }
+    ref.invalidate(sshConnectionProvider(widget.profile.id));
+    return _ssh();
+  }
+
+  /// Reconnects, replacing a dead SSH link first. With [report], a failure
+  /// is written in the conversation instead of staying silent.
+  Future<bool> _reconnect({bool report = false}) async {
     final controller = _controller;
     if (controller == null) return false;
     try {
-      var ssh = await _ssh();
-      if (!ssh.isConnected) {
-        ref.invalidate(sshConnectionProvider(widget.profile.id));
-        ssh = await _ssh();
-      }
-      await controller.reconnect(ssh: ssh);
+      await controller.reconnect(ssh: await _liveSsh());
       return controller.connected;
-    } on Object {
+    } on Object catch (e) {
+      if (report && mounted) controller.notice('Reconnect failed: $e');
       return false;
     }
   }
@@ -377,7 +405,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         controller: controller,
         title: title,
         recentlyActive: widget.session?.recentlyActive ?? false,
-        onReconnect: _reconnect,
+        onReconnect: () => _reconnect(report: true),
       );
     }
     return Scaffold(

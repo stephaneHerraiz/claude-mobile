@@ -19,6 +19,7 @@ const perso = Profile(
 );
 
 void main() {
+  Object? nextConnectError;
   late MemoryStore kv;
   late FakeSsh ssh;
   final session = SessionInfo(
@@ -32,6 +33,7 @@ void main() {
   setUp(() async {
     kv = MemoryStore();
     ssh = FakeSsh();
+    nextConnectError = null;
     await ProfileStore(kv).save(perso, privateKeyPem: 'k');
   });
 
@@ -82,5 +84,81 @@ void main() {
     await t.pumpWidget(app(const ChatScreen(profile: perso, cwd: '/w')));
     await t.pumpAndSettle();
     expect(find.text('Retry'), findsOneWidget);
+  });
+
+  group('Reconnect button', () {
+    late List<FakeSsh> links;
+
+    /// A chat whose every new SSH connection is a fresh [FakeSsh].
+    Future<void> openChat(WidgetTester t) async {
+      links = [];
+      await t.pumpWidget(
+        ProviderScope(
+          overrides: [
+            keyValueStoreProvider.overrideWithValue(kv),
+            sshFactoryProvider.overrideWithValue(() {
+              final link = FakeSsh();
+              if (links.isNotEmpty) link.connectError = nextConnectError;
+              links.add(link);
+              return link;
+            }),
+          ],
+          child: const MaterialApp(
+            home: ChatScreen(profile: perso, cwd: '/w'),
+          ),
+        ),
+      );
+      await t.pumpAndSettle();
+    }
+
+    Future<void> dropChannel(WidgetTester t, {bool linkDead = true}) async {
+      links.last.isConnected = !linkDead;
+      await links.last.channels.last.drop();
+      await t.pump();
+    }
+
+    testWidgets('resumes over a new link when the old one is dead', (t) async {
+      await openChat(t);
+      await dropChannel(t);
+      // Let the automatic retries fail, as without network.
+      nextConnectError = StateError('no route');
+      await t.pump(const Duration(minutes: 2));
+      expect(find.text('Reconnect'), findsOneWidget);
+
+      nextConnectError = null;
+      await t.tap(find.text('Reconnect'));
+      await t.pumpAndSettle();
+      expect(find.text('Reconnect'), findsNothing);
+      expect(links.last.opened.single, contains('claude'));
+    });
+
+    testWidgets('says why when it fails', (t) async {
+      await openChat(t);
+      nextConnectError = StateError('no route');
+      await dropChannel(t);
+      await t.pump(const Duration(minutes: 2));
+
+      await t.tap(find.text('Reconnect'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('Reconnect failed'), findsOneWidget);
+      expect(find.textContaining('no route'), findsOneWidget);
+      expect(find.text('Reconnect'), findsOneWidget);
+    });
+
+    testWidgets('replaces a link that died without notice', (t) async {
+      await openChat(t);
+      // `claude` went away and the link looks up, but nothing answers.
+      await dropChannel(t, linkDead: false);
+      links.last.hang = true;
+
+      await t.tap(find.text('Reconnect'));
+      await t.pump();
+      expect(find.text('Reconnecting…'), findsOneWidget);
+      await t.pump(const Duration(seconds: 30));
+      await t.pumpAndSettle();
+      expect(links.length, 2);
+      expect(find.text('Reconnect'), findsNothing);
+      expect(find.text('Reconnecting…'), findsNothing);
+    });
   });
 }

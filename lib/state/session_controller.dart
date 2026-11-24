@@ -40,6 +40,9 @@ class SessionController extends ValueNotifier<ChatState> {
         '$session';
   }
 
+  /// How long the server gets to start the command before giving up.
+  static const openTimeout = Duration(seconds: 20);
+
   Future<void>? _starting;
 
   /// Attaches to the remote session. Calls made while one is in flight share
@@ -59,7 +62,7 @@ class SessionController extends ValueNotifier<ChatState> {
         'bash -lc ${shellQuote('cd ${shellQuote(cwd)} && $claude')}';
     final LineChannel channel;
     try {
-      channel = await _ssh.open(command);
+      channel = await _ssh.open(command).timeout(openTimeout);
     } on Object catch (e) {
       value = addNotice(value, 'Could not start Claude: $e');
       return;
@@ -84,6 +87,9 @@ class SessionController extends ValueNotifier<ChatState> {
     if (ssh != null) _ssh = ssh;
     return start();
   }
+
+  /// Writes [text] in the conversation, as the app speaking.
+  void notice(String text) => value = addNotice(value, text);
 
   /// Returns false, leaving a notice, when there is no link to send over.
   bool send(String text) {

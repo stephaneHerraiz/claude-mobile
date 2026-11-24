@@ -55,6 +55,9 @@ class FakeSsh implements SshService {
   Object? connectError;
   int connects = 0;
 
+  /// A link that died without anyone noticing: commands never answer.
+  bool hang = false;
+
   @override
   bool isConnected = true;
 
@@ -67,12 +70,14 @@ class FakeSsh implements SshService {
   @override
   Future<String> run(String command) async {
     ran.add(command);
+    if (hang) return Completer<String>().future;
     if (runError != null) throw runError!;
     return runResults[command] ?? '';
   }
 
   @override
   Future<LineChannel> open(String command) async {
+    if (hang) return Completer<LineChannel>().future;
     if (openError != null) throw openError!;
     opened.add(command);
     final c = FakeChannel();

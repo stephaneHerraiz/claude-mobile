@@ -115,7 +115,8 @@ class DartSsh2Service implements SshService {
   SSHClient? _jump;
 
   @override
-  bool get isConnected => _client != null && !_client!.isClosed;
+  bool get isConnected =>
+      _client != null && !_client!.isClosed && !(_jump?.isClosed ?? false);
 
   @override
   Future<void> connect(Profile p, String privateKeyPem) async {
