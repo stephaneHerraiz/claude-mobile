@@ -18,6 +18,12 @@ const _square = RoundedRectangleBorder(
   borderRadius: BorderRadius.all(Radius.circular(2)),
 );
 
+const _buttonText = TextStyle(
+  fontFamily: 'monospace',
+  fontWeight: FontWeight.bold,
+  letterSpacing: 1.5,
+);
+
 /// One look, light or dark phone alike: monospace, square, green on black.
 final ThemeData terminalTheme = _build();
 
@@ -69,7 +75,8 @@ ThemeData _build() {
       shape: const Border(bottom: BorderSide(color: TerminalColors.line)),
     ),
     dividerTheme: const DividerThemeData(
-      color: TerminalColors.line,
+      // Brighter than the other rules: this one has to show on a phone.
+      color: TerminalColors.dimGreen,
       thickness: 1,
       space: 1,
     ),
@@ -90,19 +97,27 @@ ThemeData _build() {
       ),
       labelStyle: const TextStyle(color: TerminalColors.mutedText),
       helperStyle: const TextStyle(color: TerminalColors.mutedText),
+      helperMaxLines: 3,
+      errorMaxLines: 3,
+      prefixIconColor: TerminalColors.green,
+      prefixStyle: const TextStyle(
+        color: TerminalColors.green,
+        fontWeight: FontWeight.bold,
+      ),
       isDense: true,
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(shape: _square),
+      style: FilledButton.styleFrom(shape: _square, textStyle: _buttonText),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         shape: _square,
+        textStyle: _buttonText,
         side: const BorderSide(color: TerminalColors.dimGreen),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(shape: _square),
+      style: TextButton.styleFrom(shape: _square, textStyle: _buttonText),
     ),
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: TerminalColors.green,

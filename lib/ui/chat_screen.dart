@@ -12,6 +12,7 @@ import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'markdown_text.dart';
 import 'permission_card.dart';
+import 'terminal_widgets.dart';
 
 /// The conversation itself; knows nothing about how it is connected.
 class ChatView extends StatefulWidget {
@@ -78,7 +79,7 @@ class _ChatViewState extends State<ChatView> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(title: TermTitle(widget.title)),
       body: SafeArea(
         child: ValueListenableBuilder<ChatState>(
           valueListenable: controller,
@@ -114,7 +115,7 @@ class _ChatViewState extends State<ChatView> {
                 if (!controller.connected)
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: FilledButton.tonal(
+                    child: OutlinedButton(
                       onPressed: _reconnecting ? null : _reconnect,
                       child: Text(
                         _reconnecting ? 'Reconnecting…' : 'Reconnect',
@@ -133,8 +134,12 @@ class _ChatViewState extends State<ChatView> {
                           textInputAction: TextInputAction.newline,
                           decoration: const InputDecoration(
                             hintText: 'Message Claude',
-                            border: OutlineInputBorder(),
-                            isDense: true,
+                            // Always shown, unlike prefixText.
+                            prefixIcon: Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: Icon(Icons.chevron_right, size: 20),
+                            ),
+                            prefixIconConstraints: BoxConstraints(),
                           ),
                         ),
                       ),
@@ -202,11 +207,7 @@ class _ItemView extends StatelessWidget {
       case NoticeItem():
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Text(
-            item.text,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: scheme.error),
-          ),
+          child: TermLine(item.text, fault: true),
         );
     }
   }
@@ -450,7 +451,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       );
     }
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: TermTitle(title)),
       body: Center(
         child: _error == null
             ? const CircularProgressIndicator()
@@ -459,7 +460,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('$_error', textAlign: TextAlign.center),
+                    TermLine('$_error', fault: true),
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: _retryOpen,

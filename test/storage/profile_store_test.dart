@@ -102,4 +102,61 @@ void main() {
     await store.remove('p2');
     expect(kv.data.keys.where((k) => k.contains('p2')), isEmpty);
   });
+
+  group('update', () {
+    test('keeps the private key when none is given', () async {
+      await store.save(perso, privateKeyPem: pem);
+      await store.update(
+        const Profile(id: 'p1', name: 'renamed', host: 'example.org', port: 2222, user: 'me'),
+      );
+      expect((await store.list()).single.name, 'renamed');
+      expect(await store.privateKey('p1'), pem);
+    });
+
+    test('replaces the key when a new one is given', () async {
+      await store.save(perso, privateKeyPem: pem);
+      await store.update(perso, privateKeyPem: 'new');
+      expect(await store.privateKey('p1'), 'new');
+    });
+
+    test('keeps the pinned host key while the address is unchanged', () async {
+      await store.save(perso, privateKeyPem: pem);
+      await kv.write('hostkey:p1', 'fp');
+      await store.update(
+        const Profile(id: 'p1', name: 'x', host: 'example.org', port: 2222, user: 'other'),
+      );
+      expect(kv.data['hostkey:p1'], 'fp');
+    });
+
+    test('forgets the pinned host key when host or port changes', () async {
+      await store.save(perso, privateKeyPem: pem);
+      await kv.write('hostkey:p1', 'fp');
+      await store.update(
+        const Profile(id: 'p1', name: 'perso', host: 'new.org', port: 2222, user: 'me'),
+      );
+      expect(kv.data['hostkey:p1'], isNull);
+    });
+
+    test('forgets the jump host key when the jump host changes', () async {
+      await store.save(perso, privateKeyPem: pem);
+      await kv.write('hostkey:p1:jump', 'fp');
+      await store.update(
+        const Profile(
+          id: 'p1', name: 'perso', host: 'example.org', port: 2222, user: 'me',
+          jump: JumpHost(host: 'j', port: 22, user: 'u'),
+        ),
+      );
+      expect(kv.data['hostkey:p1:jump'], isNull);
+    });
+
+    test('leaves the other profiles alone', () async {
+      await store.save(perso, privateKeyPem: pem);
+      await store.save(
+        const Profile(id: 'p2', name: 'pro', host: 'h', port: 22, user: 'u'),
+        privateKeyPem: 'k2',
+      );
+      await store.update(const Profile(id: 'p1', name: 'again', host: 'example.org', port: 2222, user: 'me'));
+      expect((await store.list()).map((p) => p.id), ['p1', 'p2']);
+    });
+  });
 }
