@@ -94,6 +94,28 @@ void main() {
     });
   }
 
+  testWidgets('the model menu re-attaches with the chosen model', (t) async {
+    await controller.start();
+    await pump(t);
+    await t.tap(find.byTooltip('Model'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('opus'));
+    await t.pumpAndSettle();
+    expect(controller.model, 'opus');
+    expect(ssh.opened.last, contains('--model'));
+  });
+
+  testWidgets('the model menu is disabled while Claude is working', (t) async {
+    await controller.start();
+    await pump(t);
+    controller.send('go');
+    await t.pump();
+    expect(controller.value.busy, isTrue);
+    await t.tap(find.byTooltip('Model'));
+    await t.pumpAndSettle();
+    expect(find.text('opus'), findsNothing);
+  });
+
   testWidgets('renders user and assistant items', (t) async {
     await controller.start();
     await pump(t);
