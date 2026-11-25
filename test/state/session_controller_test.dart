@@ -49,6 +49,47 @@ void main() {
     });
   });
 
+  group('session name', () {
+    test('a new session is started under its name', () {
+      final c = SessionController.buildCommand(newId: 'u-1', name: "it's mine");
+      expect(c, contains(r"--name 'it'\''s mine'"));
+    });
+
+    test('a session without a name gets no --name', () {
+      expect(
+        SessionController.buildCommand(newId: 'u-1'),
+        isNot(contains('--name')),
+      );
+      expect(
+        SessionController.buildCommand(newId: 'u-1', name: '  '),
+        isNot(contains('--name')),
+      );
+    });
+
+    test('resuming never renames the session', () {
+      final c = SessionController.buildCommand(resumeId: 'abc', name: 'x');
+      expect(c, isNot(contains('--name')));
+    });
+
+    test('the name is given at the first start only', () async {
+      final c = SessionController(
+        ssh,
+        sessionId: null,
+        cwd: '/w',
+        newId: () => 'new-uuid',
+        name: 'deploy fix',
+      );
+      await c.start();
+      expect(ssh.opened.single, contains('--name'));
+      expect(ssh.opened.single, contains('deploy fix'));
+      ssh.channels.last.out.add(initLine);
+      await Future<void>.delayed(Duration.zero);
+      await c.reconnect();
+      expect(ssh.opened.last, contains('--resume'));
+      expect(ssh.opened.last, isNot(contains('--name')));
+    });
+  });
+
   group('model', () {
     test('buildCommand adds --model only when one is chosen', () {
       expect(

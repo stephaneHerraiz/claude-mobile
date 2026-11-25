@@ -50,6 +50,16 @@ def main():
     else:
         die("neither --resume nor --session-id")
 
+    if "--name" in args:
+        # Like the real CLI (observed on 2.1.332): the name given at creation
+        # is recorded in the session file as a custom title.
+        name = args[args.index("--name") + 1]
+        folder = os.path.expanduser("~/.claude/projects/-tmp-demo")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, session + ".jsonl"), "a") as f:
+            f.write(json.dumps({"type": "custom-title", "customTitle": name,
+                                "sessionId": session}) + "\n")
+
     # The model asked for, echoed in each permission request so that a test
     # can see which one the process was started with.
     model = args[args.index("--model") + 1] if "--model" in args else None

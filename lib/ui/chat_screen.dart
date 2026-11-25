@@ -333,6 +333,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.profile,
     required this.cwd,
     this.session,
+    this.name,
   });
 
   final Profile profile;
@@ -340,6 +341,9 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// Null to start a new session in [cwd].
   final SessionInfo? session;
   final String cwd;
+
+  /// Name given to a new session; unused when [session] is set.
+  final String? name;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -383,6 +387,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ssh,
         sessionId: widget.session?.id,
         cwd: widget.cwd,
+        name: widget.session == null ? widget.name : null,
         history: await _history(ssh),
       )..addListener(_onChange);
       await controller.start();
@@ -484,6 +489,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               path: '',
               modified: DateTime.now(),
               cwd: widget.cwd,
+              title: widget.name,
               recentlyActive: true,
             ),
           ),
@@ -527,7 +533,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.session?.title ?? widget.cwd;
+    final title = widget.session?.title ?? widget.name ?? widget.cwd;
     final controller = _controller;
     if (controller != null) {
       return ChatView(
