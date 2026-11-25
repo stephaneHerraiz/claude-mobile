@@ -186,6 +186,84 @@ void main() {
     expect(await ProfileStore(kv).privateKey('p1'), keys.plain.trim());
   });
 
+  testWidgets('cloning a profile prefills a new one and reuses its key', (
+    t,
+  ) async {
+    await ProfileStore(kv).save(
+      const Profile(
+        id: 'p1',
+        name: 'perso',
+        host: 'example.org',
+        port: 2222,
+        user: 'me',
+        jump: JumpHost(host: 'gate.test', port: 22, user: 'jumper'),
+      ),
+      privateKeyPem: 'k',
+    );
+    await kv.write(hostKeyEntry('p1'), 'pinned');
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Clone perso'));
+    await t.pumpAndSettle();
+    expect(find.text('Clone profile'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'perso copy'), findsOneWidget);
+    await t.enterText(find.widgetWithText(TextFormField, 'me'), 'other');
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final all = await ProfileStore(kv).list();
+    expect(all, hasLength(2));
+    expect(all.first.id, 'p1');
+    expect(all.first.user, 'me');
+    final copy = all.last;
+    expect(copy.id, isNot('p1'));
+    expect(copy.name, 'perso copy');
+    expect(copy.host, 'example.org');
+    expect(copy.port, 2222);
+    expect(copy.user, 'other');
+    expect(copy.jump!.host, 'gate.test');
+    expect(copy.jump!.user, 'jumper');
+    expect(await ProfileStore(kv).privateKey(copy.id), 'k');
+    // The server is pinned again on the copy's first connection.
+    expect(await kv.read(hostKeyEntry(copy.id)), isNull);
+    expect(find.text('perso'), findsOneWidget);
+    expect(find.text('perso copy'), findsOneWidget);
+  });
+
+  testWidgets('cloning with a pasted key stores that key on the copy only', (
+    t,
+  ) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Clone perso'));
+    await t.pumpAndSettle();
+    await t.enterText(
+      find.widgetWithText(TextFormField, 'Private key (PEM)'),
+      keys.plain,
+    );
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    final copy = (await ProfileStore(kv).list()).last;
+    expect(await ProfileStore(kv).privateKey(copy.id), keys.plain.trim());
+    expect(await ProfileStore(kv).privateKey('p1'), 'k');
+  });
+
+  testWidgets('cloning a profile whose key is gone asks for one', (t) async {
+    await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+    await kv.delete('key:p1');
+    await t.pumpWidget(app(const ProfilesScreen()));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Clone perso'));
+    await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Save'));
+    await t.tap(find.text('Save'));
+    await t.pumpAndSettle();
+    expect(find.textContaining('no stored key'), findsOneWidget);
+    expect(await ProfileStore(kv).list(), hasLength(1));
+  });
+
   testWidgets('every session is ruled off, across directories too, and its '
       'name stands out more than the directory', (t) async {
     await ProfileStore(kv).save(perso, privateKeyPem: 'k');
