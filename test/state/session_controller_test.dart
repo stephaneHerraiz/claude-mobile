@@ -49,6 +49,45 @@ void main() {
     });
   });
 
+  group('model', () {
+    test('buildCommand adds --model only when one is chosen', () {
+      expect(
+        SessionController.buildCommand(resumeId: 'abc', model: 'opus'),
+        endsWith("--resume 'abc' --model 'opus'"),
+      );
+      expect(
+        SessionController.buildCommand(resumeId: 'abc'),
+        isNot(contains('--model')),
+      );
+    });
+
+    test('setModel re-attaches to the same session with the model', () async {
+      final c = make(sessionId: 'abc');
+      await c.start();
+      await c.setModel('opus');
+      expect(ssh.opened, hasLength(2));
+      expect(ssh.opened.last, contains('--resume'));
+      expect(ssh.opened.last, contains('--model'));
+      expect(ssh.opened.last, contains('opus'));
+      expect(c.model, 'opus');
+    });
+
+    test('setModel to the current model does nothing', () async {
+      final c = make(sessionId: 'abc');
+      await c.start();
+      await c.setModel(null);
+      expect(ssh.opened, hasLength(1));
+    });
+
+    test('setModel(null) goes back to the default', () async {
+      final c = make(sessionId: 'abc');
+      await c.start();
+      await c.setModel('haiku');
+      await c.setModel(null);
+      expect(ssh.opened.last, isNot(contains('--model')));
+    });
+  });
+
   test('start opens the command in the cwd through a login shell', () async {
     final c = make(sessionId: 'abc');
     await c.start();

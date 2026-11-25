@@ -79,7 +79,20 @@ class _ChatViewState extends State<ChatView> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     return Scaffold(
-      appBar: AppBar(title: TermTitle(widget.title)),
+      appBar: AppBar(
+        title: TermTitle(widget.title),
+        actions: [
+          ValueListenableBuilder<ChatState>(
+            valueListenable: controller,
+            builder: (context, state, _) => _ModelMenu(
+              current: controller.model,
+              // Re-attaching kills the turn in progress and its questions.
+              enabled: !state.busy && state.pending == null,
+              onSelected: controller.setModel,
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ValueListenableBuilder<ChatState>(
           valueListenable: controller,
@@ -156,6 +169,35 @@ class _ChatViewState extends State<ChatView> {
           },
         ),
       ),
+    );
+  }
+}
+
+/// Picks the model the session runs with. Null is Claude's own default.
+class _ModelMenu extends StatelessWidget {
+  const _ModelMenu({
+    required this.current,
+    required this.enabled,
+    required this.onSelected,
+  });
+  final String? current;
+  final bool enabled;
+  final void Function(String? model) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    // A real value for "default": a null one reads as a dismissed menu.
+    const useDefault = 'default';
+    return PopupMenuButton<String>(
+      tooltip: 'Model',
+      enabled: enabled,
+      icon: const Icon(Icons.memory),
+      initialValue: current ?? useDefault,
+      onSelected: (m) => onSelected(m == useDefault ? null : m),
+      itemBuilder: (context) => [
+        for (final m in [useDefault, ...SessionController.modelChoices])
+          PopupMenuItem<String>(value: m, child: Text(m)),
+      ],
     );
   }
 }
