@@ -17,6 +17,21 @@ this section in the same PR.
 Do not work inside an existing checkout: it may hold uncommitted work. Use
 `git worktree add -b <type>/<subject> ../claude-mobile-<subject> origin/feat/v1`.
 
+## Releases
+
+Merging a version branch (`feat/vN`, `feat/vN.M`) into `main` publishes a signed APK as a
+GitHub release (`.github/workflows/release-apk.yaml`); the phone picks it up from there.
+Nothing else makes a release, and Claude does not create releases or tags by hand.
+
+- Before proposing the merge of a version branch into `main`, bump `version:` in
+  `pubspec.yaml` on that branch: the release is tagged `v<x.y.z>` and the workflow fails
+  if that tag already exists. The build number is computed (commit count of `main`).
+- The signing key lives only in the repository secrets. Never change the signing setup
+  without Stéphane: an APK signed by another key cannot update the installed app, and
+  uninstalling it wipes the SSH keys.
+- Local `flutter build apk --release` is signed with the debug key unless
+  `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS` are set.
+
 ## Layout
 
 - `lib/core/`: pure Dart (events, codec, chat state reducer, history, session listing).
