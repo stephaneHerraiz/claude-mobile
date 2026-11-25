@@ -262,6 +262,19 @@ void main() {
     expect((await ssh.run('ls ${shellQuote(base)} 2>&1')), contains('No such'));
   }, skip: skip);
 
+  test('a session created under a name is listed with it', () async {
+    const name = "it's a \"named\" session";
+    final c = SessionController(ssh, sessionId: null, cwd: cwd, name: name);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    final id = c.value.sessionId!;
+
+    final sessions = await loadSessions(ssh, DateTime.now());
+    expect(sessions.firstWhere((s) => s.id == id).title, name);
+  }, skip: skip);
+
   test('says so when the directory does not exist', () async {
     final c = SessionController(ssh, sessionId: null, cwd: '/no/such/dir');
     addTearDown(c.dispose);

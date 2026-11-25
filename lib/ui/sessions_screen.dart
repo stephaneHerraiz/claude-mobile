@@ -32,12 +32,17 @@ class SessionsScreen extends ConsumerWidget {
     WidgetRef ref, {
     SessionInfo? session,
     required String cwd,
+    String? name,
   }) async {
     final list = ref.read(sessionListProvider(profile.id).notifier);
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            ChatScreen(profile: profile, session: session, cwd: cwd),
+        builder: (_) => ChatScreen(
+          profile: profile,
+          session: session,
+          cwd: cwd,
+          name: name,
+        ),
       ),
     );
     unawaited(list.refresh());
@@ -82,32 +87,52 @@ class SessionsScreen extends ConsumerWidget {
     WidgetRef ref,
     String suggestion,
   ) async {
-    final input = TextEditingController(text: suggestion);
-    final cwd = await showDialog<String>(
+    final directory = TextEditingController(text: suggestion);
+    final name = TextEditingController();
+    final start = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('New session'),
-        content: TextField(
-          controller: input,
-          autocorrect: false,
-          decoration: const InputDecoration(
-            labelText: 'Directory on the server',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: name,
+              autofocus: true,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Name (optional)',
+                helperText: 'Shown here and in Claude Code\'s own lists.',
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: directory,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                labelText: 'Directory on the server',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, input.text.trim()),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Start'),
           ),
         ],
       ),
     );
-    if (cwd == null || cwd.isEmpty || !context.mounted) return;
-    unawaited(_openChat(context, ref, cwd: cwd));
+    final cwd = directory.text.trim();
+    final chosen = name.text.trim();
+    if (start != true || cwd.isEmpty || !context.mounted) return;
+    unawaited(
+      _openChat(context, ref, cwd: cwd, name: chosen.isEmpty ? null : chosen),
+    );
   }
 
   Future<void> _confirmDelete(

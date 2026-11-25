@@ -502,7 +502,10 @@ void main() {
       await t.pumpAndSettle();
       await t.tap(find.text('New session'));
       await t.pumpAndSettle();
-      await t.enterText(find.byType(TextField), '/home/me/new');
+      await t.enterText(
+        find.widgetWithText(TextField, 'Directory on the server'),
+        '/home/me/new',
+      );
       await t.tap(find.text('Start'));
       await t.pumpAndSettle();
       ssh.channels.single.out.add(
@@ -514,6 +517,40 @@ void main() {
       expect(stored.first.id, 'brand-new');
       expect(stored.first.cwd, '/home/me/new');
       expect(stored.map((s) => s.id), contains('s1'));
+    });
+
+    testWidgets('a new session can be named, and carries that name', (t) async {
+      ssh.runResults = {
+        listSessionsCommand: listing,
+        headCommand('/p/-x/s1.jsonl'): head,
+      };
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+      await t.tap(find.text('New session'));
+      await t.pumpAndSettle();
+      await t.enterText(
+        find.widgetWithText(TextField, 'Name (optional)'),
+        'deploy fix',
+      );
+      await t.enterText(
+        find.widgetWithText(TextField, 'Directory on the server'),
+        '/home/me/new',
+      );
+      await t.tap(find.text('Start'));
+      await t.pumpAndSettle();
+      // Claude is started under that name, and the chat is titled with it.
+      expect(ssh.opened.single, contains('--name'));
+      expect(ssh.opened.single, contains('deploy fix'));
+      expect(find.text('deploy fix'), findsOneWidget);
+
+      ssh.channels.single.out.add(
+        '{"type":"system","subtype":"init","session_id":"brand-new",'
+        '"cwd":"/home/me/new","model":"m"}',
+      );
+      await t.pumpAndSettle();
+      final stored = await SessionCache(kv).read('p1');
+      expect(stored.first.id, 'brand-new');
+      expect(stored.first.title, 'deploy fix');
     });
   });
 }

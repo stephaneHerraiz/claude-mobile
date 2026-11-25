@@ -17,6 +17,7 @@ class SessionController extends ValueNotifier<ChatState> {
     String Function()? newId,
     List<ChatItem> history = const [],
     String? model,
+    this.name,
   }) : _model = model,
        _resumeId = sessionId,
        _newId = newId ?? const Uuid().v4,
@@ -25,6 +26,9 @@ class SessionController extends ValueNotifier<ChatState> {
   SshService _ssh;
   final String cwd;
   final String Function() _newId;
+
+  /// The name a new session is created under; a resumed one keeps its own.
+  final String? name;
   final String? _resumeId;
 
   LineChannel? _channel;
@@ -49,10 +53,17 @@ class SessionController extends ValueNotifier<ChatState> {
     return start();
   }
 
-  static String buildCommand({String? resumeId, String? newId, String? model}) {
+  static String buildCommand({
+    String? resumeId,
+    String? newId,
+    String? model,
+    String? name,
+  }) {
+    final named = name != null && name.trim().isNotEmpty;
     final session = resumeId != null
         ? '--resume ${shellQuote(resumeId)}'
-        : '--session-id ${shellQuote(newId!)}';
+        : '--session-id ${shellQuote(newId!)}'
+              '${named ? ' --name ${shellQuote(name.trim())}' : ''}';
     return 'claude -p --input-format stream-json --output-format stream-json '
         '--verbose --include-partial-messages --permission-prompt-tool stdio '
         '$session${model == null ? '' : ' --model ${shellQuote(model)}'}';
@@ -76,6 +87,7 @@ class SessionController extends ValueNotifier<ChatState> {
       resumeId: resume,
       newId: resume == null ? _newId() : null,
       model: _model,
+      name: name,
     );
     // Login shell: a bare SSH exec often lacks the PATH that holds `claude`.
     final command =
