@@ -79,20 +79,7 @@ class _ChatViewState extends State<ChatView> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     return Scaffold(
-      appBar: AppBar(
-        title: TermTitle(widget.title),
-        actions: [
-          ValueListenableBuilder<ChatState>(
-            valueListenable: controller,
-            builder: (context, state, _) => _ModelMenu(
-              current: controller.model,
-              // Re-attaching kills the turn in progress and its questions.
-              enabled: !state.busy && state.pending == null,
-              onSelected: controller.setModel,
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: TermTitle(widget.title)),
       body: SafeArea(
         child: ValueListenableBuilder<ChatState>(
           valueListenable: controller,
@@ -135,8 +122,18 @@ class _ChatViewState extends State<ChatView> {
                       ),
                     ),
                   ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ModelMenu(
+                    current: controller.model,
+                    // Re-attaching kills the turn in progress and its
+                    // questions.
+                    enabled: !state.busy && pending == null,
+                    onSelected: controller.setModel,
+                  ),
+                ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 4, 8),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 4, 8),
                   child: Row(
                     children: [
                       Expanded(
@@ -173,7 +170,8 @@ class _ChatViewState extends State<ChatView> {
   }
 }
 
-/// Picks the model the session runs with. Null is Claude's own default.
+/// Names the model the session runs with, above the input, and opens the
+/// menu that changes it. Null is Claude's own default.
 class _ModelMenu extends StatelessWidget {
   const _ModelMenu({
     required this.current,
@@ -188,16 +186,39 @@ class _ModelMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     // A real value for "default": a null one reads as a dismissed menu.
     const useDefault = 'default';
+    final scheme = Theme.of(context).colorScheme;
+    final color = enabled ? scheme.primary : scheme.outline;
     return PopupMenuButton<String>(
       tooltip: 'Model',
       enabled: enabled,
-      icon: const Icon(Icons.memory),
       initialValue: current ?? useDefault,
       onSelected: (m) => onSelected(m == useDefault ? null : m),
       itemBuilder: (context) => [
         for (final m in [useDefault, ...SessionController.modelChoices])
           PopupMenuItem<String>(value: m, child: Text(m)),
       ],
+      // A written label: an icon alone went unnoticed.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'model: ',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            Text(
+              current ?? useDefault,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Icon(Icons.arrow_drop_down, size: 18, color: color),
+          ],
+        ),
+      ),
     );
   }
 }
