@@ -56,6 +56,15 @@ class ProfilesScreen extends ConsumerWidget {
                             ),
                           ),
                           IconButton(
+                            tooltip: 'Clone ${p.name}',
+                            icon: const Icon(Icons.copy_outlined),
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ProfileFormScreen(cloneOf: p),
+                              ),
+                            ),
+                          ),
+                          IconButton(
                             tooltip: 'Delete ${p.name}',
                             icon: const Icon(Icons.delete_outline),
                             onPressed: () => _confirmDelete(context, ref, p),
@@ -101,11 +110,16 @@ class ProfilesScreen extends ConsumerWidget {
   }
 }
 
-/// Adds a profile, or edits [profile] when given.
+/// Adds a profile, edits [profile] when given, or adds a copy of [cloneOf].
 class ProfileFormScreen extends ConsumerStatefulWidget {
-  const ProfileFormScreen({super.key, this.profile});
+  const ProfileFormScreen({super.key, this.profile, this.cloneOf})
+    : assert(profile == null || cloneOf == null);
 
   final Profile? profile;
+
+  /// The profile the new one starts from. Its key is reused unless another
+  /// one is pasted.
+  final Profile? cloneOf;
 
   @override
   ConsumerState<ProfileFormScreen> createState() => _ProfileFormScreenState();
@@ -125,13 +139,14 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   final _jumpUser = TextEditingController();
 
   Profile? get _editing => widget.profile;
+  Profile? get _cloning => widget.cloneOf;
 
   @override
   void initState() {
     super.initState();
-    final p = _editing;
+    final p = _editing ?? _cloning;
     if (p == null) return;
-    _name.text = p.name;
+    _name.text = _cloning == null ? p.name : '${p.name} copy';
     _host.text = p.host;
     _port.text = '${p.port}';
     _user.text = p.user;
@@ -173,13 +188,26 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   Future<void> _save() async {
     setState(() => _keyError = null);
     if (!_form.currentState!.validate()) return;
-    // When editing, an empty key field keeps the key already stored.
+    final store = ref.read(profileStoreProvider);
+    // When editing, an empty key field keeps the key already stored; when
+    // cloning, it takes the key of the profile cloned.
     String? key;
-    if (_editing == null || _key.text.trim().isNotEmpty) {
+    if (_key.text.trim().isNotEmpty || (_editing ?? _cloning) == null) {
       try {
         key = unlockKey(_key.text, _passphrase.text);
       } on KeyError catch (e) {
         setState(() => _keyError = e);
+        return;
+      }
+    } else if (_cloning case final source?) {
+      key = await store.privateKey(source.id);
+      if (key == null) {
+        if (!mounted) return;
+        setState(
+          () => _keyError = KeyError(
+            '${source.name} has no stored key any more. Paste one.',
+          ),
+        );
         return;
       }
     }
@@ -197,7 +225,6 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
             )
           : null,
     );
-    final store = ref.read(profileStoreProvider);
     if (_editing == null) {
       await store.save(profile, privateKeyPem: key!);
     } else {
@@ -213,7 +240,13 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: TermTitle(_editing == null ? 'New profile' : 'Edit profile'),
+        title: TermTitle(
+          _editing != null
+              ? 'Edit profile'
+              : _cloning != null
+              ? 'Clone profile'
+              : 'New profile',
+        ),
       ),
       body: Form(
         key: _form,
@@ -284,9 +317,11 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 controller: _key,
                 decoration: InputDecoration(
                   labelText: 'Private key (PEM)',
-                  helperText: _editing == null
-                      ? 'Stored only in this phone\'s secure storage.'
-                      : 'Leave empty to keep the current key.',
+                  helperText: _editing != null
+                      ? 'Leave empty to keep the current key.'
+                      : _cloning != null
+                      ? 'Leave empty to use the same key as ${_cloning!.name}.'
+                      : 'Stored only in this phone\'s secure storage.',
                   errorText: _keyError?.needsPassphrase == false
                       ? _keyError!.message
                       : null,
@@ -296,7 +331,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 enableSuggestions: false,
                 minLines: 3,
                 maxLines: 6,
-                validator: _editing == null ? _required : null,
+                validator: (_editing ?? _cloning) == null ? _required : null,
               ),
               const SizedBox(height: 14),
               TextFormField(

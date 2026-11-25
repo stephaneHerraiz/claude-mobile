@@ -38,8 +38,9 @@ flutter test test/live       # skipped unless LIVE_SSH_HOST is set
 tool/live_rig/start.sh       # prints the variables for a local rig (fake_claude.py)
 ```
 
-Run analyze and the tests concerned before committing. Flutter is **not installed in the
-Claude pod**: from there these cannot run, so say "not run" in the PR.
+Run analyze and the tests concerned before committing. In the Claude pod, `flutter` and
+`dart` are on the `PATH` (`~/sdk/flutter`, linked from `~/.local/bin`; if they are
+missing, `export PATH="$HOME/sdk/flutter/bin:$PATH"`). One heavy command at a time.
 
 ## Rules
 
