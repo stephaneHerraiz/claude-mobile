@@ -141,6 +141,28 @@ String? _name(Map<String, dynamic> m, String type, String field) {
   return name is String && name.trim().isNotEmpty ? name.trim() : null;
 }
 
+/// Printed by [deleteSessionCommand] once everything is gone.
+const deletedMarker = 'claude-mobile:deleted';
+
+final _sessionFile = RegExp(r'^/.*/\.claude/projects/[^/]+/[^/]+\.jsonl$');
+
+/// Erases a session from the server: its file, and the directory of the same
+/// name where Claude Code keeps what the session produced on the side.
+///
+/// Only builds a command for a session file under `.claude/projects`: this
+/// runs `rm -rf`, so anything else is refused outright.
+String deleteSessionCommand(String path) {
+  if (!_sessionFile.hasMatch(path) || path.split('/').contains('..')) {
+    throw ArgumentError.value(path, 'path', 'Not a session file');
+  }
+  final companion = path.substring(0, path.length - '.jsonl'.length);
+  return 'rm -f -- ${shellQuote(path)} && '
+      'rm -rf -- ${shellQuote(companion)} && echo $deletedMarker';
+}
+
+/// Whether the output of [deleteSessionCommand] reports success.
+bool sessionDeleted(String output) => output.trim() == deletedMarker;
+
 String? _userText(Map<String, dynamic> m) {
   if (m['type'] != 'user' || m['isMeta'] == true) return null;
   final msg = m['message'];

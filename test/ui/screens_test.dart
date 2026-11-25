@@ -79,6 +79,79 @@ void main() {
     expect(find.byType(Divider), findsNWidgets(2));
   });
 
+  group('deleting a session', () {
+    const a = '/h/.claude/projects/-a/s1.jsonl';
+    const b = '/h/.claude/projects/-a/s2.jsonl';
+
+    Future<void> openList(WidgetTester t, {String? deleteOutput}) async {
+      await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+      ssh.runResults = {
+        listSessionsCommand: '3.0 $a\n2.0 $b\n',
+        for (final (path, name) in [(a, 'First'), (b, 'Second')])
+          headCommand(path):
+              '{"type":"user","cwd":"/a","message":{"content":"x"}}\n'
+              '{"type":"ai-title","aiTitle":"$name"}\n',
+        deleteSessionCommand(a): ?deleteOutput,
+      };
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+    }
+
+    testWidgets('erases it on the server once confirmed', (t) async {
+      await openList(t, deleteOutput: '$deletedMarker\n');
+      await t.tap(find.byTooltip('Delete First'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('cannot be undone'), findsOneWidget);
+      expect(ssh.ran, isNot(contains(deleteSessionCommand(a))));
+
+      await t.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await t.pumpAndSettle();
+      expect(ssh.ran, contains(deleteSessionCommand(a)));
+      expect(find.text('First'), findsNothing);
+      expect(find.text('Second'), findsOneWidget);
+      final cached = await SessionCache(kv).read('p1');
+      expect(cached.map((s) => s.id), ['s2']);
+    });
+
+    testWidgets('does nothing when cancelled', (t) async {
+      await openList(t, deleteOutput: '$deletedMarker\n');
+      await t.tap(find.byTooltip('Delete First'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Cancel'));
+      await t.pumpAndSettle();
+      expect(ssh.ran, isNot(contains(deleteSessionCommand(a))));
+      expect(find.text('First'), findsOneWidget);
+    });
+
+    testWidgets('keeps it and says so when the server did not erase it', (
+      t,
+    ) async {
+      await openList(t);
+      await t.tap(find.byTooltip('Delete First'));
+      await t.pumpAndSettle();
+      await t.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await t.pumpAndSettle();
+      expect(find.text('First'), findsOneWidget);
+      expect(find.textContaining('Could not delete'), findsOneWidget);
+    });
+
+    testWidgets('warns when the session was active a moment ago', (t) async {
+      await ProfileStore(kv).save(perso, privateKeyPem: 'k');
+      final now = DateTime.now().millisecondsSinceEpoch / 1000;
+      ssh.runResults = {
+        listSessionsCommand: '$now $a\n',
+        headCommand(a):
+            '{"type":"user","cwd":"/a","message":{"content":"x"}}\n'
+            '{"type":"ai-title","aiTitle":"First"}\n',
+      };
+      await t.pumpWidget(app(const SessionsScreen(profile: perso)));
+      await t.pumpAndSettle();
+      await t.tap(find.byTooltip('Delete First'));
+      await t.pumpAndSettle();
+      expect(find.textContaining('may be open elsewhere'), findsOneWidget);
+    });
+  });
+
   testWidgets('editing a profile prefills it and keeps its key', (t) async {
     await ProfileStore(kv).save(perso, privateKeyPem: 'k');
     await t.pumpWidget(app(const ProfilesScreen()));

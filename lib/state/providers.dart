@@ -109,6 +109,28 @@ class SessionListNotifier extends AsyncNotifier<List<SessionInfo>> {
     }
   }
 
+  /// Erases [session] from the server, then from the list and the cache.
+  /// Throws, leaving the list as it was, when the server did not erase it.
+  Future<void> delete(SessionInfo session) async {
+    final cache = ref.read(sessionCacheProvider);
+    final ssh = await ref.read(sshConnectionProvider(profileId).future);
+    final output = await ssh.run(deleteSessionCommand(session.path));
+    if (!sessionDeleted(output)) {
+      throw StateError('The server did not confirm the deletion');
+    }
+    final current = state.value ?? await cache.read(profileId);
+    final list = [
+      for (final s in current)
+        if (s.id != session.id) s,
+    ];
+    if (ref.mounted) state = AsyncData(list);
+    try {
+      await cache.write(profileId, list);
+    } on Object {
+      // See _fetch.
+    }
+  }
+
   /// Puts a session just created at the top of the list and of the cache.
   Future<void> add(SessionInfo session) async {
     final cache = ref.read(sessionCacheProvider);

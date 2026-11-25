@@ -107,7 +107,13 @@ void main() {
     test('keeps the private key when none is given', () async {
       await store.save(perso, privateKeyPem: pem);
       await store.update(
-        const Profile(id: 'p1', name: 'renamed', host: 'example.org', port: 2222, user: 'me'),
+        const Profile(
+          id: 'p1',
+          name: 'renamed',
+          host: 'example.org',
+          port: 2222,
+          user: 'me',
+        ),
       );
       expect((await store.list()).single.name, 'renamed');
       expect(await store.privateKey('p1'), pem);
@@ -123,7 +129,13 @@ void main() {
       await store.save(perso, privateKeyPem: pem);
       await kv.write('hostkey:p1', 'fp');
       await store.update(
-        const Profile(id: 'p1', name: 'x', host: 'example.org', port: 2222, user: 'other'),
+        const Profile(
+          id: 'p1',
+          name: 'x',
+          host: 'example.org',
+          port: 2222,
+          user: 'other',
+        ),
       );
       expect(kv.data['hostkey:p1'], 'fp');
     });
@@ -132,7 +144,13 @@ void main() {
       await store.save(perso, privateKeyPem: pem);
       await kv.write('hostkey:p1', 'fp');
       await store.update(
-        const Profile(id: 'p1', name: 'perso', host: 'new.org', port: 2222, user: 'me'),
+        const Profile(
+          id: 'p1',
+          name: 'perso',
+          host: 'new.org',
+          port: 2222,
+          user: 'me',
+        ),
       );
       expect(kv.data['hostkey:p1'], isNull);
     });
@@ -142,7 +160,11 @@ void main() {
       await kv.write('hostkey:p1:jump', 'fp');
       await store.update(
         const Profile(
-          id: 'p1', name: 'perso', host: 'example.org', port: 2222, user: 'me',
+          id: 'p1',
+          name: 'perso',
+          host: 'example.org',
+          port: 2222,
+          user: 'me',
           jump: JumpHost(host: 'j', port: 22, user: 'u'),
         ),
       );
@@ -155,7 +177,15 @@ void main() {
         const Profile(id: 'p2', name: 'pro', host: 'h', port: 22, user: 'u'),
         privateKeyPem: 'k2',
       );
-      await store.update(const Profile(id: 'p1', name: 'again', host: 'example.org', port: 2222, user: 'me'));
+      await store.update(
+        const Profile(
+          id: 'p1',
+          name: 'again',
+          host: 'example.org',
+          port: 2222,
+          user: 'me',
+        ),
+      );
       expect((await store.list()).map((p) => p.id), ['p1', 'p2']);
     });
   });
