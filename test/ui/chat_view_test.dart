@@ -94,6 +94,19 @@ void main() {
     });
   }
 
+  testWidgets('the model in use is written above the input', (t) async {
+    await controller.start();
+    await pump(t);
+    expect(find.text('model: '), findsOneWidget);
+    expect(find.text('default'), findsOneWidget);
+    await t.tap(find.byTooltip('Model'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('haiku'));
+    await t.pumpAndSettle();
+    expect(find.text('haiku'), findsOneWidget);
+    expect(find.text('default'), findsNothing);
+  });
+
   testWidgets('the model menu re-attaches with the chosen model', (t) async {
     await controller.start();
     await pump(t);
