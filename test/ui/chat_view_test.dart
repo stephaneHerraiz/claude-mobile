@@ -124,9 +124,11 @@ void main() {
     controller.send('go');
     await t.pump();
     expect(controller.value.busy, isTrue);
-    await t.tap(find.byTooltip('Model'));
-    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Model'), warnIfMissed: false);
+    // Not pumpAndSettle: the progress bar of a busy session never settles.
+    await t.pump(const Duration(milliseconds: 500));
     expect(find.text('opus'), findsNothing);
+    expect(ssh.opened.length, 1);
   });
 
   testWidgets('renders user and assistant items', (t) async {

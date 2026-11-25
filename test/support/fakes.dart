@@ -18,7 +18,12 @@ class MemoryStore implements KeyValueStore {
 }
 
 class FakeChannel implements LineChannel {
-  final StreamController<String> out = StreamController<String>();
+  // The explicit onCancel matters in widget tests: without it, cancelling the
+  // subscription completes on a future outside the test's fake clock, and
+  // whatever awaits it (re-attaching a session) never finishes.
+  final StreamController<String> out = StreamController<String>(
+    onCancel: () async {},
+  );
   final List<String> written = [];
   final Completer<void> _done = Completer<void>();
   bool closed = false;
@@ -35,7 +40,9 @@ class FakeChannel implements LineChannel {
   @override
   Future<void> close() async {
     closed = true;
-    if (!out.isClosed) await out.close();
+    // Not awaited, for the same reason as onCancel above: once the listener
+    // is gone, close() completes outside the test's fake clock.
+    if (!out.isClosed) unawaited(out.close());
   }
 
   @override
