@@ -275,6 +275,25 @@ void main() {
     expect(sessions.firstWhere((s) => s.id == id).title, name);
   }, skip: skip);
 
+  test('changing the model restarts the session with it', () async {
+    final c = SessionController(ssh, sessionId: null, cwd: cwd);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    expect(c.value.pending!.description, 'Create file');
+    final session = c.value.sessionId;
+    c.approve();
+    await until(c, (s) => !s.busy && s.costUsd > 0);
+
+    await c.setModel('opus').timeout(const Duration(seconds: 10));
+    expect(c.connected, isTrue);
+    c.send('b.txt');
+    await until(c, (s) => s.pending != null);
+    expect(c.value.pending!.description, 'Create file (model opus)');
+    expect(c.value.sessionId, session);
+  }, skip: skip);
+
   test('says so when the directory does not exist', () async {
     final c = SessionController(ssh, sessionId: null, cwd: '/no/such/dir');
     addTearDown(c.dispose);

@@ -16,10 +16,9 @@ class SessionController extends ValueNotifier<ChatState> {
     required this.cwd,
     String Function()? newId,
     List<ChatItem> history = const [],
-    String? model,
+    this._model,
     this.name,
-  }) : _model = model,
-       _resumeId = sessionId,
+  }) : _resumeId = sessionId,
        _newId = newId ?? const Uuid().v4,
        super(ChatState(items: history, sessionId: sessionId));
 

@@ -221,10 +221,8 @@ void main() {
       // Nothing told the app: the chat still looks connected.
       links.single.hang = true;
       await sleepThenWake(t);
-      // The probe gives up after 5 s. Leaving the still-open channel then
-      // completes outside the test's fake clock, hence the real pause.
+      // The probe gives up after 5 s.
       await t.pump(const Duration(seconds: 6));
-      await t.runAsync(() => Future<void>.delayed(Duration.zero));
       await t.pumpAndSettle();
 
       expect(links.length, 2);
