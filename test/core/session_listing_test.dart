@@ -124,4 +124,47 @@ void main() {
       expect(command, contains("'/p/x.jsonl' | tail -n"));
     });
   });
+
+  group('deleteSessionCommand', () {
+    const path = '/home/me/.claude/projects/-home-me-app/abc-123.jsonl';
+
+    test('removes the session file and its companion directory', () {
+      final command = deleteSessionCommand(path);
+      expect(command, contains("rm -f -- '$path'"));
+      expect(
+        command,
+        contains("rm -rf -- '/home/me/.claude/projects/-home-me-app/abc-123'"),
+      );
+    });
+
+    test('says so only when everything went', () {
+      expect(deleteSessionCommand(path), endsWith('&& echo $deletedMarker'));
+      expect(sessionDeleted('$deletedMarker\n'), isTrue);
+      expect(sessionDeleted(''), isFalse);
+      expect(sessionDeleted('rm: cannot remove'), isFalse);
+    });
+
+    test('quotes a path with a quote in it', () {
+      expect(
+        deleteSessionCommand("/h/.claude/projects/-it's/a.jsonl"),
+        contains(r"rm -f -- '/h/.claude/projects/-it'\''s/a.jsonl'"),
+      );
+    });
+
+    for (final bad in [
+      '/etc/passwd',
+      '/home/me/notes.jsonl',
+      '/home/me/.claude/projects/a.jsonl',
+      '/home/me/.claude/projects/-app/../../.ssh/x.jsonl',
+      '/home/me/.claude/projects/-app/sub/dir/x.jsonl',
+      '/home/me/.claude/projects/-app/.jsonl',
+      '/home/me/.claude/projects/-app/abc',
+      '.claude/projects/-app/abc.jsonl',
+      '',
+    ]) {
+      test('refuses to build a command for "$bad"', () {
+        expect(() => deleteSessionCommand(bad), throwsArgumentError);
+      });
+    }
+  });
 }

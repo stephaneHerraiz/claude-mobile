@@ -110,6 +110,56 @@ class SessionsScreen extends ConsumerWidget {
     unawaited(_openChat(context, ref, cwd: cwd));
   }
 
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    SessionInfo session,
+  ) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this session?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(session.title ?? session.id),
+            const SizedBox(height: 12),
+            const Text(
+              'Its history is erased from the server. This cannot be undone.',
+            ),
+            if (session.recentlyActive) ...[
+              const SizedBox(height: 12),
+              const TermLine(
+                'It was active in the last minute and may be open elsewhere.',
+                fault: true,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(sessionListProvider(profile.id).notifier).delete(session);
+    } on Object catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not delete the session: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessions = ref.watch(sessionListProvider(profile.id));
@@ -202,12 +252,22 @@ class SessionsScreen extends ConsumerWidget {
                             style: TextStyle(color: scheme.primary),
                           ),
                           subtitle: Text(_when(s.modified)),
-                          trailing: s.recentlyActive
-                              ? const Tooltip(
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (s.recentlyActive)
+                                const Tooltip(
                                   message: 'Active in the last minute',
                                   child: Icon(Icons.circle, size: 12),
-                                )
-                              : null,
+                                ),
+                              IconButton(
+                                tooltip: 'Delete ${s.title ?? s.id}',
+                                icon: const Icon(Icons.delete_outline),
+                                onPressed: () =>
+                                    _confirmDelete(context, ref, s),
+                              ),
+                            ],
+                          ),
                           onTap: () => _openSession(context, ref, s),
                         ),
                       ],

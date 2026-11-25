@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:claude_mobile/core/chat_state.dart';
 import 'package:claude_mobile/core/history.dart';
+import 'package:claude_mobile/core/session_listing.dart';
 import 'package:claude_mobile/ssh/key.dart';
 import 'package:claude_mobile/ssh/profile.dart';
 import 'package:claude_mobile/ssh/ssh_service.dart';
@@ -239,6 +240,26 @@ void main() {
     c.send('b.txt');
     await until(c, (s) => s.pending?.input['command'] == 'touch b.txt');
     expect(c.value.sessionId, session);
+  }, skip: skip);
+
+  test('erases a session file and its companion directory', () async {
+    final home = (await ssh.run(r'printf %s "$HOME"')).trim();
+    final base = '$home/.claude/projects/-tmp-demo/22222222-doomed';
+    await ssh.run(
+      'mkdir -p ${shellQuote('$base/tool-results')} && '
+      'touch ${shellQuote('$base.jsonl')} ${shellQuote('$base/tool-results/x')}',
+    );
+    final before = await loadSessions(ssh, DateTime.now());
+    expect(before.map((s) => s.id), contains('22222222-doomed'));
+
+    final doomed = before.firstWhere((s) => s.id == '22222222-doomed');
+    final output = await ssh.run(deleteSessionCommand(doomed.path));
+    expect(sessionDeleted(output), isTrue);
+
+    final after = await loadSessions(ssh, DateTime.now());
+    expect(after.map((s) => s.id), isNot(contains('22222222-doomed')));
+    expect(after.map((s) => s.id), contains(startsWith('11111111')));
+    expect((await ssh.run('ls ${shellQuote(base)} 2>&1')), contains('No such'));
   }, skip: skip);
 
   test('says so when the directory does not exist', () async {
