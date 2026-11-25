@@ -405,7 +405,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _open();
   }
 
+  bool _listed = false;
+
+  /// A session started here joins the sessions list as soon as it has an id.
+  void _listNewSession(ChatState state) {
+    final id = state.sessionId;
+    if (_listed || widget.session != null || id == null) return;
+    _listed = true;
+    unawaited(
+      ref
+          .read(sessionListProvider(widget.profile.id).notifier)
+          .add(
+            SessionInfo(
+              id: id,
+              path: '',
+              modified: DateTime.now(),
+              cwd: widget.cwd,
+              recentlyActive: true,
+            ),
+          ),
+    );
+  }
+
   void _onChange() {
+    final controller = _controller;
+    if (controller != null) _listNewSession(controller.value);
     final connected = _controller?.connected ?? false;
     final dropped = _wasConnected && !connected;
     _wasConnected = connected;

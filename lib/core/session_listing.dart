@@ -23,12 +23,44 @@ class SessionInfo {
 
   /// Written to less than a minute ago: probably open somewhere else.
   final bool recentlyActive;
+
+  SessionInfo withPath(String path) => SessionInfo(
+    id: id,
+    path: path,
+    modified: modified,
+    cwd: cwd,
+    title: title,
+    recentlyActive: recentlyActive,
+  );
+
+  /// For the on-device cache. [recentlyActive] is not kept: it is only true
+  /// of the moment the list was read.
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'path': path,
+    'modified': modified.millisecondsSinceEpoch,
+    'cwd': cwd,
+    if (title != null) 'title': title,
+  };
+
+  factory SessionInfo.fromJson(Map<String, dynamic> j) => SessionInfo(
+    id: j['id'] as String,
+    path: j['path'] as String,
+    modified: DateTime.fromMillisecondsSinceEpoch(j['modified'] as int),
+    cwd: j['cwd'] as String? ?? '',
+    title: j['title'] as String?,
+  );
 }
 
 /// Prints `<epoch-seconds> <path>` for every session file. Needs GNU find.
 const listSessionsCommand =
     r"find ~/.claude/projects -mindepth 2 -maxdepth 2 -name '*.jsonl' "
     r"-printf '%T@ %p\n' 2>/dev/null";
+
+/// Prints the path of the file of session [id], whichever directory holds it.
+String findSessionCommand(String id) =>
+    'find ~/.claude/projects -mindepth 2 -maxdepth 2 '
+    "-name ${shellQuote('$id.jsonl')} 2>/dev/null";
 
 const _recentWindow = Duration(seconds: 60);
 const _titleMax = 80;
