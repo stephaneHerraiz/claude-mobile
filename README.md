@@ -43,7 +43,7 @@ flowchart LR
   subgraph server["Server"]
     cmds["One-shot commands<br/>find, head, tail, rm"]
     claude["claude -p<br/>stream-json on stdin/stdout"]
-    files[("~/.claude/projects/<br/>project/session-id.jsonl")]
+    files[("Session files<br/>one .jsonl per session")]
     cmds --> files
     claude --> files
   end
@@ -66,9 +66,9 @@ screen uses it any more.
 
 ```mermaid
 sequenceDiagram
-  participant App as App (sshConnectionProvider)
+  participant App as App
   participant Store as Secure storage
-  participant Jump as Jump host (optional)
+  participant Jump as Jump host
   participant Server
 
   App->>Store: read profile and private key
@@ -115,15 +115,15 @@ sequenceDiagram
   participant Chat as ChatScreen
   participant Ctl as SessionController
   participant SSH as SSH connection
-  participant Claude as claude -p (server)
+  participant Claude as claude on the server
 
-  User->>List: New session (directory, optional name)
+  User->>List: New session with a directory and an optional name
   List->>Chat: open with cwd and name, no session
-  Chat->>SSH: get the profile's connection (connect if needed)
+  Chat->>SSH: get the connection of the profile, connect if needed
   Chat->>Ctl: create, sessionId = null, empty history
   Chat->>Ctl: start()
   Ctl->>Ctl: generate a UUID
-  Ctl->>SSH: open(bash -lc 'cd CWD && claude -p ... --session-id UUID --name NAME')
+  Ctl->>SSH: open the claude command with this UUID as session id
   SSH->>Claude: exec channel, stdin and stdout stay open
   Note over Chat,Claude: Attached. The input field is live.
   User->>Chat: first message
@@ -131,7 +131,7 @@ sequenceDiagram
   Claude-->>Ctl: system init event carrying session_id
   Ctl->>Chat: state.sessionId is set
   Chat->>List: add the session at the top of the list and of the cache
-  Claude-->>Ctl: assistant text, tool calls, permission requests...
+  Claude-->>Ctl: assistant text, tool calls, permission requests
 ```
 
 The command sent to the server (`SessionController.buildCommand`, wrapped in `_start`):
@@ -191,11 +191,11 @@ has to attach again with `--resume`.
 stateDiagram-v2
   [*] --> Opening: chat opened
   Opening --> Attached: channel open
-  Opening --> Failed: connect or start error
-  Failed --> Opening: Retry (new SSH connection)
+  Opening --> Failed: connection error
+  Failed --> Opening: Retry on a new SSH connection
   Attached --> Detached: channel closed or errored
-  Detached --> Attached: reconnect, claude --resume ID
-  Attached --> [*]: chat closed, channel closed
+  Detached --> Attached: reconnect and resume the session
+  Attached --> [*]: chat closed
   Detached --> [*]: chat closed
 ```
 
@@ -228,20 +228,20 @@ sequenceDiagram
   participant Cache as Session list cache
 
   User->>List: bin icon
-  List->>User: Delete this session? (warns if active in the last minute)
+  List->>User: confirmation dialog, with a warning if recently active
   User->>List: Delete
   List->>N: delete(session)
-  N->>N: deleteSessionCommand(path), refuses anything but a session file
-  N->>SSH: run(rm -f FILE && rm -rf COMPANION_DIR && echo claude-mobile:deleted)
+  N->>N: build the command, refused for anything but a session file
+  N->>SSH: run the delete command
   SSH->>Server: exec
   alt output is exactly the marker
-    Server-->>N: claude-mobile:deleted
+    Server-->>N: the marker
     N->>List: list without the session
     N->>Cache: write the new list
-  else anything else (rm failed, timeout, link down)
+  else anything else
     Server-->>N: other output or error
     N-->>List: error
-    List->>User: Could not delete the session, list unchanged
+    List->>User: error message, the list is unchanged
   end
 ```
 
