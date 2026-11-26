@@ -10,6 +10,7 @@ there is a plain shell command sent over SSH.
 
 No secrets in git: SSH keys live only in the phone's secure storage.
 
+- [What it looks like](#what-it-looks-like)
 - [The big picture](#the-big-picture)
 - [The SSH connection](#the-ssh-connection)
 - [Creating a session](#creating-a-session)
@@ -17,6 +18,19 @@ No secrets in git: SSH keys live only in the phone's secure storage.
 - [When the link drops](#when-the-link-drops)
 - [Deleting a session](#deleting-a-session)
 - [Development](#development)
+
+## What it looks like
+
+| The sessions of a server | A conversation |
+| :---: | :---: |
+| <img src="docs/screenshots/sessions.png" width="300" alt="Sessions list, grouped by directory, each with a bin icon"> | <img src="docs/screenshots/chat.png" width="300" alt="Conversation with a tool call waiting for approval"> |
+
+On the left, the sessions found on the server, grouped by working directory; the dot
+marks one written to in the last minute. On the right, a conversation: Claude's answer,
+its tool calls, and a permission request waiting for *Deny* or *Approve*.
+
+The screenshots are rendered from the widgets with sample data, not taken on a phone:
+the font differs slightly from the device's own monospace.
 
 ## The big picture
 
@@ -107,6 +121,8 @@ What to know:
 From a profile's sessions list, *New session* asks for a directory on the server and an
 optional name, then opens the chat. The session itself is created by `claude`, not by
 the app: the app only chooses its id.
+
+<img src="docs/screenshots/new-session.png" width="300" alt="New session dialog: optional name and directory on the server">
 
 ```mermaid
 sequenceDiagram
@@ -217,6 +233,8 @@ stateDiagram-v2
 
 The bin icon on a session erases it **from the server**. There is no undo, hence the
 confirmation, which adds a warning when the session was active in the last minute.
+
+<img src="docs/screenshots/delete-session.png" width="300" alt="Delete this session? dialog, with the warning for a recently active session">
 
 ```mermaid
 sequenceDiagram
