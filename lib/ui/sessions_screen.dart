@@ -274,7 +274,12 @@ class SessionsScreen extends ConsumerWidget {
                             s.title ?? s.id,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: scheme.primary),
+                            // Below the ListTile default (16): two lines of
+                            // name fit without crowding the list.
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: scheme.primary,
+                            ),
                           ),
                           subtitle: Text(_when(s.modified)),
                           trailing: Row(
