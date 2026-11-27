@@ -11,6 +11,7 @@ there is a plain shell command sent over SSH.
 No secrets in git: SSH keys live only in the phone's secure storage.
 
 - [What it looks like](#what-it-looks-like)
+- [Install on a phone](#install-on-a-phone)
 - [The big picture](#the-big-picture)
 - [The SSH connection](#the-ssh-connection)
 - [Creating a session](#creating-a-session)
@@ -31,6 +32,17 @@ its tool calls, and a permission request waiting for *Deny* or *Approve*.
 
 The screenshots are rendered from the widgets with sample data, not taken on a phone:
 the font differs slightly from the device's own monospace.
+
+## Install on a phone
+
+Signed APKs are published as [GitHub releases](https://github.com/stephaneHerraiz/claude-mobile/releases),
+one per version merged into `main`. To get updates automatically, add this repository in
+[Obtainium](https://github.com/ImranR98/Obtainium) (source: GitHub,
+`https://github.com/stephaneHerraiz/claude-mobile`). Each release notes the SHA-256 of
+the signing certificate.
+
+A build signed by another key (a debug build from a PC or the Claude pod) cannot update
+the released app: Android asks to uninstall first, which wipes the SSH keys and profiles.
 
 ## The big picture
 
