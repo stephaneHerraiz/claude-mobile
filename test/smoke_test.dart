@@ -1,5 +1,5 @@
-import 'package:claude_mobile/main.dart';
-import 'package:claude_mobile/state/providers.dart';
+import 'package:remote_harness/main.dart';
+import 'package:remote_harness/state/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [keyValueStoreProvider.overrideWithValue(MemoryStore())],
-        child: ClaudeMobileApp(authenticate: () async => true),
+        child: RemoteHarnessApp(authenticate: () async => true),
       ),
     );
     await tester.pumpAndSettle();
@@ -22,7 +22,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [keyValueStoreProvider.overrideWithValue(MemoryStore())],
-        child: ClaudeMobileApp(authenticate: () async => true),
+        child: RemoteHarnessApp(authenticate: () async => true),
       ),
     );
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
@@ -37,7 +37,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [keyValueStoreProvider.overrideWithValue(MemoryStore())],
-        child: ClaudeMobileApp(authenticate: () async => true),
+        child: RemoteHarnessApp(authenticate: () async => true),
       ),
     );
     await tester.pumpAndSettle();

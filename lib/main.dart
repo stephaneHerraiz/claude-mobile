@@ -6,11 +6,11 @@ import 'ui/profiles_screen.dart';
 import 'ui/theme.dart';
 
 void main() {
-  runApp(const ProviderScope(child: ClaudeMobileApp()));
+  runApp(const ProviderScope(child: RemoteHarnessApp()));
 }
 
-class ClaudeMobileApp extends StatelessWidget {
-  const ClaudeMobileApp({super.key, this.authenticate = deviceAuthenticate});
+class RemoteHarnessApp extends StatelessWidget {
+  const RemoteHarnessApp({super.key, this.authenticate = deviceAuthenticate});
 
   final Future<bool?> Function() authenticate;
 

@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:claude_mobile/ssh/profile.dart';
-import 'package:claude_mobile/ssh/ssh_service.dart';
-import 'package:claude_mobile/storage/profile_store.dart';
+import 'package:remote_harness/ssh/profile.dart';
+import 'package:remote_harness/ssh/ssh_service.dart';
+import 'package:remote_harness/storage/profile_store.dart';
 
 class MemoryStore implements KeyValueStore {
   final Map<String, String> data = {};

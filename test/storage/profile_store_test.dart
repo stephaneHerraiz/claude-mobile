@@ -1,5 +1,5 @@
-import 'package:claude_mobile/ssh/profile.dart';
-import 'package:claude_mobile/storage/profile_store.dart';
+import 'package:remote_harness/ssh/profile.dart';
+import 'package:remote_harness/storage/profile_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';

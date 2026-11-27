@@ -10,10 +10,9 @@ there is a plain shell command sent over SSH.
 
 No secrets in git: SSH keys live only in the phone's secure storage.
 
-The app is shown as **Remote Harness** on the phone. The repository, the Dart package
-(`claude_mobile`) and the Android application id (`dev.herraiz.claude_mobile`) keep
-their first name: changing the application id would install a second app next to the
-old one, without its profiles and keys.
+The Android application id is still `dev.herraiz.claude_mobile`, after the app's first
+name: changing that id would install a second app next to the old one, without its
+profiles and keys.
 
 - [What it looks like](#what-it-looks-like)
 - [Install on a phone](#install-on-a-phone)
@@ -40,10 +39,10 @@ the font differs slightly from the device's own monospace.
 
 ## Install on a phone
 
-Signed APKs are published as [GitHub releases](https://github.com/stephaneHerraiz/claude-mobile/releases),
+Signed APKs are published as [GitHub releases](https://github.com/stephaneHerraiz/remote-harness-mobile/releases),
 one per version merged into `main`. To get updates automatically, add this repository in
 [Obtainium](https://github.com/ImranR98/Obtainium) (source: GitHub,
-`https://github.com/stephaneHerraiz/claude-mobile`). Each release notes the SHA-256 of
+`https://github.com/stephaneHerraiz/remote-harness-mobile`). Each release notes the SHA-256 of
 the signing certificate.
 
 A build signed by another key (a debug build from a PC or the Claude pod) cannot update
@@ -283,7 +282,7 @@ sequenceDiagram
 The command (`deleteSessionCommand` in `lib/core/session_listing.dart`):
 
 ```bash
-rm -f -- '<dir>/<id>.jsonl' && rm -rf -- '<dir>/<id>' && echo claude-mobile:deleted
+rm -f -- '<dir>/<id>.jsonl' && rm -rf -- '<dir>/<id>' && echo remote-harness:deleted
 ```
 
 - **Two things are removed**: the session file, and the directory of the same name

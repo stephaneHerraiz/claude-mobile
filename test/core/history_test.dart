@@ -1,5 +1,5 @@
-import 'package:claude_mobile/core/chat_state.dart';
-import 'package:claude_mobile/core/history.dart';
+import 'package:remote_harness/core/chat_state.dart';
+import 'package:remote_harness/core/history.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const userLine =

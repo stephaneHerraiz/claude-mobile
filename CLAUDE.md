@@ -4,9 +4,10 @@ Flutter SSH chat client for Claude Code sessions. The app opens `claude -p` with
 stream-json over an SSH exec channel; it is not a terminal and not a claude.ai client.
 Design and v1 plan: `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 
-The app's display name is **Remote Harness** (Android label, `MaterialApp` title,
-README). The repository, the Dart package `claude_mobile` and the Android application id
-`dev.herraiz.claude_mobile` keep the old name on purpose: do not rename them in passing.
+The app is named **Remote Harness**: display name, repository, Dart package
+(`remote_harness`), classes. One name stays on purpose: the Android application id and
+namespace `dev.herraiz.claude_mobile`. Android treats another id as another app,
+installed next to the old one without its profiles and keys.
 
 ## Branches: where to start
 
@@ -19,7 +20,7 @@ When this changes (`feat/v1` finally merged into `main`, or a `feat/v2` started)
 this section in the same PR.
 
 Do not work inside an existing checkout: it may hold uncommitted work. Use
-`git worktree add -b <type>/<subject> ../claude-mobile-<subject> origin/feat/v1`.
+`git worktree add -b <type>/<subject> ../remote-harness-mobile-<subject> origin/feat/v1`.
 
 ## Releases
 

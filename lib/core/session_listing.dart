@@ -142,7 +142,7 @@ String? _name(Map<String, dynamic> m, String type, String field) {
 }
 
 /// Printed by [deleteSessionCommand] once everything is gone.
-const deletedMarker = 'claude-mobile:deleted';
+const deletedMarker = 'remote-harness:deleted';
 
 final _sessionFile = RegExp(r'^/.*/\.claude/projects/[^/]+/[^/]+\.jsonl$');
 

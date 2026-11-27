@@ -1,5 +1,5 @@
-import 'package:claude_mobile/core/session_listing.dart';
-import 'package:claude_mobile/state/session_loader.dart';
+import 'package:remote_harness/core/session_listing.dart';
+import 'package:remote_harness/state/session_loader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
