@@ -17,7 +17,7 @@ class ClaudeMobileApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Claude Mobile',
+      title: 'Remote Harness',
       theme: terminalTheme,
       debugShowCheckedModeBanner: false,
       home: LockGate(authenticate: authenticate, child: const ProfilesScreen()),

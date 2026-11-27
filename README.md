@@ -1,4 +1,4 @@
-# claude-mobile
+# Remote Harness
 
 Flutter chat client for [Claude Code](https://claude.com/claude-code) sessions that live
 on a server you reach over SSH. The app is not a terminal and not a claude.ai client: it
@@ -9,6 +9,11 @@ Nothing is installed on the server besides Claude Code itself. Everything the ap
 there is a plain shell command sent over SSH.
 
 No secrets in git: SSH keys live only in the phone's secure storage.
+
+The app is shown as **Remote Harness** on the phone. The repository, the Dart package
+(`claude_mobile`) and the Android application id (`dev.herraiz.claude_mobile`) keep
+their first name: changing the application id would install a second app next to the
+old one, without its profiles and keys.
 
 - [What it looks like](#what-it-looks-like)
 - [The big picture](#the-big-picture)

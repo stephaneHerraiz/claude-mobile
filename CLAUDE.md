@@ -4,6 +4,10 @@ Flutter SSH chat client for Claude Code sessions. The app opens `claude -p` with
 stream-json over an SSH exec channel; it is not a terminal and not a claude.ai client.
 Design and v1 plan: `docs/superpowers/specs/` and `docs/superpowers/plans/`.
 
+The app's display name is **Remote Harness** (Android label, `MaterialApp` title,
+README). The repository, the Dart package `claude_mobile` and the Android application id
+`dev.herraiz.claude_mobile` keep the old name on purpose: do not rename them in passing.
+
 ## Branches: where to start
 
 **The default branch `main` is behind and must not be a base.** Work is stacked: PRs
