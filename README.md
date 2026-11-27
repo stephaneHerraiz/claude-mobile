@@ -39,10 +39,10 @@ the font differs slightly from the device's own monospace.
 
 ## Install on a phone
 
-Signed APKs are published as [GitHub releases](https://github.com/stephaneHerraiz/remote-harness/releases),
+Signed APKs are published as [GitHub releases](https://github.com/stephaneHerraiz/remote-harness-mobile/releases),
 one per version merged into `main`. To get updates automatically, add this repository in
 [Obtainium](https://github.com/ImranR98/Obtainium) (source: GitHub,
-`https://github.com/stephaneHerraiz/remote-harness`). Each release notes the SHA-256 of
+`https://github.com/stephaneHerraiz/remote-harness-mobile`). Each release notes the SHA-256 of
 the signing certificate.
 
 A build signed by another key (a debug build from a PC or the Claude pod) cannot update

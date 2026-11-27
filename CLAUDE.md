@@ -20,7 +20,7 @@ When this changes (`feat/v1` finally merged into `main`, or a `feat/v2` started)
 this section in the same PR.
 
 Do not work inside an existing checkout: it may hold uncommitted work. Use
-`git worktree add -b <type>/<subject> ../remote-harness-<subject> origin/feat/v1`.
+`git worktree add -b <type>/<subject> ../remote-harness-mobile-<subject> origin/feat/v1`.
 
 ## Releases
 
