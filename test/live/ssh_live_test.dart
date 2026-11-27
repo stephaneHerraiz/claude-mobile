@@ -3,14 +3,14 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:claude_mobile/core/chat_state.dart';
-import 'package:claude_mobile/core/history.dart';
-import 'package:claude_mobile/core/session_listing.dart';
-import 'package:claude_mobile/ssh/key.dart';
-import 'package:claude_mobile/ssh/profile.dart';
-import 'package:claude_mobile/ssh/ssh_service.dart';
-import 'package:claude_mobile/state/session_controller.dart';
-import 'package:claude_mobile/state/session_loader.dart';
+import 'package:remote_harness/core/chat_state.dart';
+import 'package:remote_harness/core/history.dart';
+import 'package:remote_harness/core/session_listing.dart';
+import 'package:remote_harness/ssh/key.dart';
+import 'package:remote_harness/ssh/profile.dart';
+import 'package:remote_harness/ssh/ssh_service.dart';
+import 'package:remote_harness/state/session_controller.dart';
+import 'package:remote_harness/state/session_loader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
@@ -135,7 +135,7 @@ void main() {
   }, skip: skip);
 
   test('logs in with a key unlocked from its passphrase', () async {
-    final dir = Directory.systemTemp.createTempSync('claude_mobile_live');
+    final dir = Directory.systemTemp.createTempSync('remote_harness_live');
     addTearDown(() => dir.deleteSync(recursive: true));
     final copy = File('${dir.path}/key')..writeAsStringSync(key);
     Process.runSync('chmod', ['600', copy.path]);

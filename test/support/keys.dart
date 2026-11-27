@@ -13,7 +13,7 @@ class TestKeys {
   final String encrypted;
 
   static TestKeys generate() {
-    final dir = Directory.systemTemp.createTempSync('claude_mobile_keys');
+    final dir = Directory.systemTemp.createTempSync('remote_harness_keys');
     try {
       final path = '${dir.path}/key';
       _keygen(['-q', '-t', 'ed25519', '-N', '', '-f', path]);

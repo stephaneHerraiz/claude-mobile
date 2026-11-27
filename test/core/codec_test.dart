@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:claude_mobile/core/codec.dart';
-import 'package:claude_mobile/core/events.dart';
+import 'package:remote_harness/core/codec.dart';
+import 'package:remote_harness/core/events.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const initLine =

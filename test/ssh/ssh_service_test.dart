@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:claude_mobile/ssh/ssh_service.dart';
+import 'package:remote_harness/ssh/ssh_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:claude_mobile/core/chat_state.dart';
-import 'package:claude_mobile/state/session_controller.dart';
+import 'package:remote_harness/core/chat_state.dart';
+import 'package:remote_harness/state/session_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';

@@ -10,10 +10,9 @@ there is a plain shell command sent over SSH.
 
 No secrets in git: SSH keys live only in the phone's secure storage.
 
-The app is shown as **Remote Harness** on the phone. The repository, the Dart package
-(`claude_mobile`) and the Android application id (`dev.herraiz.claude_mobile`) keep
-their first name: changing the application id would install a second app next to the
-old one, without its profiles and keys.
+The repository is still called `claude-mobile`, the app's first name, and so is the
+Android application id (`dev.herraiz.claude_mobile`): changing that id would install a
+second app next to the old one, without its profiles and keys.
 
 - [What it looks like](#what-it-looks-like)
 - [Install on a phone](#install-on-a-phone)
@@ -283,7 +282,7 @@ sequenceDiagram
 The command (`deleteSessionCommand` in `lib/core/session_listing.dart`):
 
 ```bash
-rm -f -- '<dir>/<id>.jsonl' && rm -rf -- '<dir>/<id>' && echo claude-mobile:deleted
+rm -f -- '<dir>/<id>.jsonl' && rm -rf -- '<dir>/<id>' && echo remote-harness:deleted
 ```
 
 - **Two things are removed**: the session file, and the directory of the same name

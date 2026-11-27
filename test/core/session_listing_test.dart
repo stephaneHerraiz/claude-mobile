@@ -1,4 +1,4 @@
-import 'package:claude_mobile/core/session_listing.dart';
+import 'package:remote_harness/core/session_listing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

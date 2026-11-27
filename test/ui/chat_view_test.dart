@@ -1,6 +1,6 @@
-import 'package:claude_mobile/state/session_controller.dart';
-import 'package:claude_mobile/ui/chat_screen.dart';
-import 'package:claude_mobile/ui/permission_card.dart';
+import 'package:remote_harness/state/session_controller.dart';
+import 'package:remote_harness/ui/chat_screen.dart';
+import 'package:remote_harness/ui/permission_card.dart';
 // ignore: deprecated_member_use, the Markdown package still builds on the framework's Material.
 import 'package:flutter/material.dart' as fm;
 import 'package:flutter_test/flutter_test.dart';

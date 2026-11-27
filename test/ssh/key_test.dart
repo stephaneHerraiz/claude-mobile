@@ -1,4 +1,4 @@
-import 'package:claude_mobile/ssh/key.dart';
+import 'package:remote_harness/ssh/key.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_test/flutter_test.dart';
 
