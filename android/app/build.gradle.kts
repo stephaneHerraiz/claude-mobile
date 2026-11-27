@@ -14,7 +14,7 @@ fun requiredEnv(name: String): String =
         ?: throw GradleException("$name must be set when ANDROID_KEYSTORE_PATH is set")
 
 android {
-    namespace = "dev.herraiz.claude_mobile"
+    namespace = "dev.herraiz.remote_harness"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -25,7 +25,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "dev.herraiz.claude_mobile"
+        applicationId = "dev.herraiz.remote_harness"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
