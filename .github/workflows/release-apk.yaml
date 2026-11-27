@@ -118,7 +118,7 @@ jobs:
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          apk="claude-mobile-$TAG.apk"
+          apk="remote-harness-$TAG.apk"
           cp build/app/outputs/flutter-apk/app-release.apk "$apk"
           apksigner=$(printf '%s\n' "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
           certs=$("$apksigner" verify --print-certs "$apk")
@@ -144,7 +144,7 @@ jobs:
           gh release create "$TAG" "$APK" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$MERGE_SHA" \
-            --title "claude-mobile $TAG" \
+            --title "Remote Harness $TAG" \
             --notes "Build $CODE. Signing certificate SHA-256: \`$CERT\`" \
             --generate-notes \
             --latest
