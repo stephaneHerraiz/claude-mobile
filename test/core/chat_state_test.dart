@@ -1,5 +1,5 @@
-import 'package:claude_mobile/core/chat_state.dart';
-import 'package:claude_mobile/core/events.dart';
+import 'package:remote_harness/core/chat_state.dart';
+import 'package:remote_harness/core/events.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const perm = PermissionRequest('req1', 'toolu_1', 'Bash', {

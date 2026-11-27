@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:claude_mobile/core/chat_state.dart';
-import 'package:claude_mobile/state/session_controller.dart';
+import 'package:remote_harness/core/chat_state.dart';
+import 'package:remote_harness/state/session_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
@@ -46,6 +46,86 @@ void main() {
       final c = SessionController.buildCommand(newId: 'u-1');
       expect(c, contains("--session-id 'u-1'"));
       expect(c, isNot(contains('--resume')));
+    });
+  });
+
+  group('session name', () {
+    test('a new session is started under its name', () {
+      final c = SessionController.buildCommand(newId: 'u-1', name: "it's mine");
+      expect(c, contains(r"--name 'it'\''s mine'"));
+    });
+
+    test('a session without a name gets no --name', () {
+      expect(
+        SessionController.buildCommand(newId: 'u-1'),
+        isNot(contains('--name')),
+      );
+      expect(
+        SessionController.buildCommand(newId: 'u-1', name: '  '),
+        isNot(contains('--name')),
+      );
+    });
+
+    test('resuming never renames the session', () {
+      final c = SessionController.buildCommand(resumeId: 'abc', name: 'x');
+      expect(c, isNot(contains('--name')));
+    });
+
+    test('the name is given at the first start only', () async {
+      final c = SessionController(
+        ssh,
+        sessionId: null,
+        cwd: '/w',
+        newId: () => 'new-uuid',
+        name: 'deploy fix',
+      );
+      await c.start();
+      expect(ssh.opened.single, contains('--name'));
+      expect(ssh.opened.single, contains('deploy fix'));
+      ssh.channels.last.out.add(initLine);
+      await Future<void>.delayed(Duration.zero);
+      await c.reconnect();
+      expect(ssh.opened.last, contains('--resume'));
+      expect(ssh.opened.last, isNot(contains('--name')));
+    });
+  });
+
+  group('model', () {
+    test('buildCommand adds --model only when one is chosen', () {
+      expect(
+        SessionController.buildCommand(resumeId: 'abc', model: 'opus'),
+        endsWith("--resume 'abc' --model 'opus'"),
+      );
+      expect(
+        SessionController.buildCommand(resumeId: 'abc'),
+        isNot(contains('--model')),
+      );
+    });
+
+    test('setModel re-attaches to the same session with the model', () async {
+      final c = make(sessionId: 'abc');
+      await c.start();
+      await c.setModel('opus');
+      expect(ssh.opened, hasLength(2));
+      expect(ssh.opened.last, contains('--resume'));
+      expect(ssh.opened.last, contains('--model'));
+      expect(ssh.opened.last, contains('opus'));
+      expect(c.model, 'opus');
+    });
+
+    test('setModel to the current model does nothing', () async {
+      final c = make(sessionId: 'abc');
+      await c.start();
+      await c.setModel(null);
+      expect(ssh.opened, hasLength(1));
+    });
+
+    test('setModel(null) goes back to the default', () async {
+      final c = make(sessionId: 'abc');
+      await c.start();
+      await c.setModel('haiku');
+      await c.setModel(null);
+      expect(ssh.opened.last, isNot(contains('--model')));
     });
   });
 
@@ -255,4 +335,23 @@ void main() {
     expect(ids, ['req-9', 'req-10']);
     expect(c.value.pending, isNull);
   });
+
+  test(
+    'reattaching drops the request the old process was waiting on',
+    () async {
+      final c = make(sessionId: 'sid-1');
+      await c.start();
+      ssh.channels.last.out.add(permLine);
+      await Future<void>.delayed(Duration.zero);
+      expect(c.value.pending, isNotNull);
+
+      await c.reconnect();
+      expect(ssh.channels.length, 2);
+      // The new process knows nothing of that request: answering it would
+      // write an unknown id, and it would hide the next real request.
+      expect(c.value.pending, isNull);
+      expect(c.value.busy, isFalse);
+      expect(c.value.items.whereType<NoticeItem>(), isEmpty);
+    },
+  );
 }

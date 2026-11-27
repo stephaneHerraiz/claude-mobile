@@ -1,0 +1,150 @@
+# Builds a signed APK and publishes it as a GitHub release when a version branch
+# (feat/v1, feat/v2, feat/v1.1...) is merged into main. The phone follows the releases of
+# this repository (Obtainium), so each version merge shows up there as an update.
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_BASE64    the PKCS12 keystore, base64-encoded
+#   ANDROID_KEYSTORE_PASSWORD  its password (one password for the store and the key)
+#   ANDROID_KEY_ALIAS          the key alias
+# Never replace the key: Android refuses an update signed by another key, and the only way
+# out is to uninstall the app, which wipes the SSH keys it keeps in secure storage.
+name: Release APK
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-apk
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - name: Is the merged branch a version branch?
+        id: check
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [[ "$HEAD_REF" =~ ^feat/v[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$HEAD_REF is not a version branch (feat/vN): no release."
+          fi
+
+  release:
+    needs: gate
+    if: needs.gate.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0 # the build number counts the commits of main
+
+      - name: Version
+        id: version
+        run: |
+          name=$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+)([+[:space:]].*)?$/\1/p' pubspec.yaml)
+          if [[ -z "$name" ]]; then
+            echo "::error::no x.y.z version found in pubspec.yaml"
+            exit 1
+          fi
+          tag="v$name"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null \
+            || gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::$tag is already released: bump 'version:' in pubspec.yaml on the version branch and merge it again."
+            exit 1
+          fi
+          {
+            echo "name=$name"
+            echo "code=$(git rev-list --count HEAD)"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" || -z "$KEY_ALIAS" ]]; then
+            echo "::error::signing secrets missing: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS"
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.50.1 # same as the Claude pod and the PC
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter test
+
+      - name: Build
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          BUILD_NAME: ${{ steps.version.outputs.name }}
+          BUILD_NUMBER: ${{ steps.version.outputs.code }}
+        run: flutter build apk --release --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
+
+      - name: Check the signature
+        id: apk
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          apk="remote-harness-$TAG.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$apk"
+          apksigner=$(printf '%s\n' "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
+          certs=$("$apksigner" verify --print-certs "$apk")
+          if grep -q "CN=Android Debug" <<<"$certs"; then
+            echo "::error::the APK is signed with a debug key"
+            exit 1
+          fi
+          cert=$(sed -nE 's/^Signer #1 certificate SHA-256 digest: ([0-9a-f]+)$/\1/p' <<<"$certs")
+          if [[ -z "$cert" ]]; then
+            echo "::error::no signing certificate found in the APK"
+            exit 1
+          fi
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+          echo "cert=$cert" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          CODE: ${{ steps.version.outputs.code }}
+          APK: ${{ steps.apk.outputs.path }}
+          CERT: ${{ steps.apk.outputs.cert }}
+        run: |
+          gh release create "$TAG" "$APK" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$MERGE_SHA" \
+            --title "Remote Harness $TAG" \
+            --notes "Build $CODE. Signing certificate SHA-256: \`$CERT\`" \
+            --generate-notes \
+            --latest

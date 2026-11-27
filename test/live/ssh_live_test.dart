@@ -3,13 +3,14 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:claude_mobile/core/chat_state.dart';
-import 'package:claude_mobile/core/history.dart';
-import 'package:claude_mobile/ssh/key.dart';
-import 'package:claude_mobile/ssh/profile.dart';
-import 'package:claude_mobile/ssh/ssh_service.dart';
-import 'package:claude_mobile/state/session_controller.dart';
-import 'package:claude_mobile/state/session_loader.dart';
+import 'package:remote_harness/core/chat_state.dart';
+import 'package:remote_harness/core/history.dart';
+import 'package:remote_harness/core/session_listing.dart';
+import 'package:remote_harness/ssh/key.dart';
+import 'package:remote_harness/ssh/profile.dart';
+import 'package:remote_harness/ssh/ssh_service.dart';
+import 'package:remote_harness/state/session_controller.dart';
+import 'package:remote_harness/state/session_loader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fakes.dart';
@@ -134,7 +135,7 @@ void main() {
   }, skip: skip);
 
   test('logs in with a key unlocked from its passphrase', () async {
-    final dir = Directory.systemTemp.createTempSync('claude_mobile_live');
+    final dir = Directory.systemTemp.createTempSync('remote_harness_live');
     addTearDown(() => dir.deleteSync(recursive: true));
     final copy = File('${dir.path}/key')..writeAsStringSync(key);
     Process.runSync('chmod', ['600', copy.path]);
@@ -158,7 +159,8 @@ void main() {
     final sessions = await loadSessions(ssh, DateTime.now());
     final s = sessions.firstWhere((s) => s.id.startsWith('11111111'));
     expect(s.cwd, '/tmp/demo');
-    expect(s.title, 'Fix the login bug');
+    // The name Claude gave the session, not its first message.
+    expect(s.title, 'Login bug');
     final history = parseHistory(await ssh.run(historyCommand(s.path)));
     expect(history.whereType<UserItem>().single.text, 'Fix the login bug');
     expect(history.whereType<AssistantTextItem>().single.text, 'On it.');
@@ -222,6 +224,73 @@ void main() {
     await c.reconnect(ssh: again);
     c.send('b.txt');
     await until(c, (s) => s.pending != null);
+    expect(c.value.sessionId, session);
+  }, skip: skip);
+
+  test('reattaches while the previous channel is still open', () async {
+    final c = SessionController(ssh, sessionId: null, cwd: cwd);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    final session = c.value.sessionId;
+
+    await c.reconnect().timeout(const Duration(seconds: 10));
+    expect(c.connected, isTrue);
+    c.send('b.txt');
+    await until(c, (s) => s.pending?.input['command'] == 'touch b.txt');
+    expect(c.value.sessionId, session);
+  }, skip: skip);
+
+  test('erases a session file and its companion directory', () async {
+    final home = (await ssh.run(r'printf %s "$HOME"')).trim();
+    final base = '$home/.claude/projects/-tmp-demo/22222222-doomed';
+    await ssh.run(
+      'mkdir -p ${shellQuote('$base/tool-results')} && '
+      'touch ${shellQuote('$base.jsonl')} ${shellQuote('$base/tool-results/x')}',
+    );
+    final before = await loadSessions(ssh, DateTime.now());
+    expect(before.map((s) => s.id), contains('22222222-doomed'));
+
+    final doomed = before.firstWhere((s) => s.id == '22222222-doomed');
+    final output = await ssh.run(deleteSessionCommand(doomed.path));
+    expect(sessionDeleted(output), isTrue);
+
+    final after = await loadSessions(ssh, DateTime.now());
+    expect(after.map((s) => s.id), isNot(contains('22222222-doomed')));
+    expect(after.map((s) => s.id), contains(startsWith('11111111')));
+    expect((await ssh.run('ls ${shellQuote(base)} 2>&1')), contains('No such'));
+  }, skip: skip);
+
+  test('a session created under a name is listed with it', () async {
+    const name = "it's a \"named\" session";
+    final c = SessionController(ssh, sessionId: null, cwd: cwd, name: name);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    final id = c.value.sessionId!;
+
+    final sessions = await loadSessions(ssh, DateTime.now());
+    expect(sessions.firstWhere((s) => s.id == id).title, name);
+  }, skip: skip);
+
+  test('changing the model restarts the session with it', () async {
+    final c = SessionController(ssh, sessionId: null, cwd: cwd);
+    addTearDown(c.dispose);
+    await c.start();
+    c.send('a.txt');
+    await until(c, (s) => s.pending != null);
+    expect(c.value.pending!.description, 'Create file');
+    final session = c.value.sessionId;
+    c.approve();
+    await until(c, (s) => !s.busy && s.costUsd > 0);
+
+    await c.setModel('opus').timeout(const Duration(seconds: 10));
+    expect(c.connected, isTrue);
+    c.send('b.txt');
+    await until(c, (s) => s.pending != null);
+    expect(c.value.pending!.description, 'Create file (model opus)');
     expect(c.value.sessionId, session);
   }, skip: skip);
 

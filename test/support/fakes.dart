@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:claude_mobile/ssh/profile.dart';
-import 'package:claude_mobile/ssh/ssh_service.dart';
-import 'package:claude_mobile/storage/profile_store.dart';
+import 'package:remote_harness/ssh/profile.dart';
+import 'package:remote_harness/ssh/ssh_service.dart';
+import 'package:remote_harness/storage/profile_store.dart';
 
 class MemoryStore implements KeyValueStore {
   final Map<String, String> data = {};
@@ -18,7 +18,12 @@ class MemoryStore implements KeyValueStore {
 }
 
 class FakeChannel implements LineChannel {
-  final StreamController<String> out = StreamController<String>();
+  // The explicit onCancel matters in widget tests: without it, cancelling the
+  // subscription completes on a future outside the test's fake clock, and
+  // whatever awaits it (re-attaching a session) never finishes.
+  final StreamController<String> out = StreamController<String>(
+    onCancel: () async {},
+  );
   final List<String> written = [];
   final Completer<void> _done = Completer<void>();
   bool closed = false;
@@ -35,7 +40,9 @@ class FakeChannel implements LineChannel {
   @override
   Future<void> close() async {
     closed = true;
-    if (!out.isClosed) await out.close();
+    // Not awaited, for the same reason as onCancel above: once the listener
+    // is gone, close() completes outside the test's fake clock.
+    if (!out.isClosed) unawaited(out.close());
   }
 
   @override
@@ -55,6 +62,9 @@ class FakeSsh implements SshService {
   Object? connectError;
   int connects = 0;
 
+  /// A link that died without anyone noticing: commands never answer.
+  bool hang = false;
+
   @override
   bool isConnected = true;
 
@@ -67,12 +77,14 @@ class FakeSsh implements SshService {
   @override
   Future<String> run(String command) async {
     ran.add(command);
+    if (hang) return Completer<String>().future;
     if (runError != null) throw runError!;
     return runResults[command] ?? '';
   }
 
   @override
   Future<LineChannel> open(String command) async {
+    if (hang) return Completer<LineChannel>().future;
     if (openError != null) throw openError!;
     opened.add(command);
     final c = FakeChannel();

@@ -1,4 +1,4 @@
-import 'package:claude_mobile/core/session_listing.dart';
+import 'package:remote_harness/core/session_listing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -74,11 +74,97 @@ void main() {
 
   test('shellQuote escapes a single quote', () {
     expect(shellQuote("/a/it's.jsonl"), r"'/a/it'\''s.jsonl'");
-    expect(headCommand("/a/it's.jsonl"), r"head -c 65536 '/a/it'\''s.jsonl'");
+    expect(
+      headCommand("/a/it's.jsonl"),
+      startsWith(r"head -c 65536 '/a/it'\''s.jsonl'"),
+    );
   });
 
   test('listSessionsCommand lists jsonl files with mtime', () {
     expect(listSessionsCommand, contains(r"-printf '%T@ %p\n'"));
     expect(listSessionsCommand, contains('.claude/projects'));
+  });
+
+  group('session name', () {
+    final s = SessionInfo(
+      id: 'x',
+      path: '/p/x.jsonl',
+      modified: DateTime(2026),
+    );
+    const first =
+        '{"type":"user","cwd":"/w","message":{"role":"user","content":"fix the login bug please"}}';
+    String ai(String t) => '{"type":"ai-title","aiTitle":"$t","sessionId":"x"}';
+    String custom(String t) =>
+        '{"type":"custom-title","customTitle":"$t","sessionId":"x"}';
+
+    test('is the name Claude gave the session, the latest one', () {
+      final out = [first, ai('Login bug'), ai('Login bug fix')].join('\n');
+      expect(withHead(s, out).title, 'Login bug fix');
+      expect(withHead(s, out).cwd, '/w');
+    });
+
+    test('is the name the user chose, over the one Claude gave', () {
+      final out = [first, custom('my name'), ai('Login bug')].join('\n');
+      expect(withHead(s, out).title, 'my name');
+    });
+
+    test('falls back to the first message when the session has no name', () {
+      expect(withHead(s, first).title, 'fix the login bug please');
+    });
+
+    test('ignores an empty name', () {
+      expect(withHead(s, [first, ai('')].join('\n')).title, startsWith('fix'));
+    });
+
+    test('is looked for in the whole file, not only its start', () {
+      final command = headCommand('/p/x.jsonl');
+      expect(command, contains("grep -a"));
+      expect(command, contains('ai-title'));
+      expect(command, contains('custom-title'));
+      expect(command, contains("'/p/x.jsonl' | tail -n"));
+    });
+  });
+
+  group('deleteSessionCommand', () {
+    const path = '/home/me/.claude/projects/-home-me-app/abc-123.jsonl';
+
+    test('removes the session file and its companion directory', () {
+      final command = deleteSessionCommand(path);
+      expect(command, contains("rm -f -- '$path'"));
+      expect(
+        command,
+        contains("rm -rf -- '/home/me/.claude/projects/-home-me-app/abc-123'"),
+      );
+    });
+
+    test('says so only when everything went', () {
+      expect(deleteSessionCommand(path), endsWith('&& echo $deletedMarker'));
+      expect(sessionDeleted('$deletedMarker\n'), isTrue);
+      expect(sessionDeleted(''), isFalse);
+      expect(sessionDeleted('rm: cannot remove'), isFalse);
+    });
+
+    test('quotes a path with a quote in it', () {
+      expect(
+        deleteSessionCommand("/h/.claude/projects/-it's/a.jsonl"),
+        contains(r"rm -f -- '/h/.claude/projects/-it'\''s/a.jsonl'"),
+      );
+    });
+
+    for (final bad in [
+      '/etc/passwd',
+      '/home/me/notes.jsonl',
+      '/home/me/.claude/projects/a.jsonl',
+      '/home/me/.claude/projects/-app/../../.ssh/x.jsonl',
+      '/home/me/.claude/projects/-app/sub/dir/x.jsonl',
+      '/home/me/.claude/projects/-app/.jsonl',
+      '/home/me/.claude/projects/-app/abc',
+      '.claude/projects/-app/abc.jsonl',
+      '',
+    ]) {
+      test('refuses to build a command for "$bad"', () {
+        expect(() => deleteSessionCommand(bad), throwsArgumentError);
+      });
+    }
   });
 }

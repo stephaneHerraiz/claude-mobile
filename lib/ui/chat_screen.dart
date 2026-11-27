@@ -12,6 +12,7 @@ import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'markdown_text.dart';
 import 'permission_card.dart';
+import 'terminal_widgets.dart';
 
 /// The conversation itself; knows nothing about how it is connected.
 class ChatView extends StatefulWidget {
@@ -63,11 +64,22 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
+  bool _reconnecting = false;
+
+  Future<void> _reconnect() async {
+    setState(() => _reconnecting = true);
+    try {
+      await (widget.onReconnect ?? widget.controller.reconnect)();
+    } finally {
+      if (mounted) setState(() => _reconnecting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(title: TermTitle(widget.title)),
       body: SafeArea(
         child: ValueListenableBuilder<ChatState>(
           valueListenable: controller,
@@ -103,13 +115,25 @@ class _ChatViewState extends State<ChatView> {
                 if (!controller.connected)
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: FilledButton.tonal(
-                      onPressed: widget.onReconnect ?? controller.reconnect,
-                      child: const Text('Reconnect'),
+                    child: OutlinedButton(
+                      onPressed: _reconnecting ? null : _reconnect,
+                      child: Text(
+                        _reconnecting ? 'Reconnecting…' : 'Reconnect',
+                      ),
                     ),
                   ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ModelMenu(
+                    current: controller.model,
+                    // Re-attaching kills the turn in progress and its
+                    // questions.
+                    enabled: !state.busy && pending == null,
+                    onSelected: controller.setModel,
+                  ),
+                ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 4, 8),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 4, 8),
                   child: Row(
                     children: [
                       Expanded(
@@ -118,10 +142,17 @@ class _ChatViewState extends State<ChatView> {
                           minLines: 1,
                           maxLines: 5,
                           textInputAction: TextInputAction.newline,
+                          // Same size as the conversation, not the
+                          // larger TextField default (16).
+                          style: const TextStyle(fontSize: 14),
                           decoration: const InputDecoration(
                             hintText: 'Message Claude',
-                            border: OutlineInputBorder(),
-                            isDense: true,
+                            // Always shown, unlike prefixText.
+                            prefixIcon: Padding(
+                              padding: EdgeInsets.only(left: 8),
+                              child: Icon(Icons.chevron_right, size: 20),
+                            ),
+                            prefixIconConstraints: BoxConstraints(),
                           ),
                         ),
                       ),
@@ -136,6 +167,59 @@ class _ChatViewState extends State<ChatView> {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Names the model the session runs with, above the input, and opens the
+/// menu that changes it. Null is Claude's own default.
+class _ModelMenu extends StatelessWidget {
+  const _ModelMenu({
+    required this.current,
+    required this.enabled,
+    required this.onSelected,
+  });
+  final String? current;
+  final bool enabled;
+  final void Function(String? model) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    // A real value for "default": a null one reads as a dismissed menu.
+    const useDefault = 'default';
+    final scheme = Theme.of(context).colorScheme;
+    final color = enabled ? scheme.primary : scheme.outline;
+    return PopupMenuButton<String>(
+      tooltip: 'Model',
+      enabled: enabled,
+      initialValue: current ?? useDefault,
+      onSelected: (m) => onSelected(m == useDefault ? null : m),
+      itemBuilder: (context) => [
+        for (final m in [useDefault, ...SessionController.modelChoices])
+          PopupMenuItem<String>(value: m, child: Text(m)),
+      ],
+      // A written label: an icon alone went unnoticed.
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'model: ',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            Text(
+              current ?? useDefault,
+              style: TextStyle(
+                fontSize: 12,
+                color: color,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Icon(Icons.arrow_drop_down, size: 18, color: color),
+          ],
         ),
       ),
     );
@@ -159,9 +243,24 @@ class _ItemView extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant),
+              borderRadius: BorderRadius.circular(2),
             ),
-            child: SelectableText(item.text),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // A shell prompt marks what the user typed.
+                Text(
+                  '> ',
+                  style: TextStyle(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Flexible(child: SelectableText(item.text)),
+              ],
+            ),
           ),
         );
       case AssistantTextItem():
@@ -174,11 +273,7 @@ class _ItemView extends StatelessWidget {
       case NoticeItem():
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Text(
-            item.text,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: scheme.error),
-          ),
+          child: TermLine(item.text, fault: true),
         );
     }
   }
@@ -241,6 +336,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.profile,
     required this.cwd,
     this.session,
+    this.name,
   });
 
   final Profile profile;
@@ -249,6 +345,9 @@ class ChatScreen extends ConsumerStatefulWidget {
   final SessionInfo? session;
   final String cwd;
 
+  /// Name given to a new session; unused when [session] is set.
+  final String? name;
+
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
@@ -256,6 +355,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
   static const _maxAutoRetries = 5;
+  static const _probeTimeout = Duration(seconds: 5);
 
   SessionController? _controller;
   Object? _error;
@@ -290,6 +390,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ssh,
         sessionId: widget.session?.id,
         cwd: widget.cwd,
+        name: widget.session == null ? widget.name : null,
         history: await _history(ssh),
       )..addListener(_onChange);
       await controller.start();
@@ -312,24 +413,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  /// Reconnects, replacing a dead SSH link first.
-  Future<bool> _reconnect() async {
-    final controller = _controller;
-    if (controller == null) return false;
+  /// Whether the profile's SSH link is up and answering. A link can look up
+  /// long after the network under it is gone, hence the probe.
+  Future<bool> _answers() async {
     try {
-      var ssh = await _ssh();
-      if (!ssh.isConnected) {
-        ref.invalidate(sshConnectionProvider(widget.profile.id));
-        ssh = await _ssh();
-      }
-      await controller.reconnect(ssh: ssh);
-      return controller.connected;
+      final ssh = await _ssh();
+      if (!ssh.isConnected) return false;
+      await ssh.run('true').timeout(_probeTimeout);
+      return true;
     } on Object {
       return false;
     }
   }
 
+  /// The profile's SSH link if it answers, otherwise a new one. A failed
+  /// attempt stays remembered until it is discarded, which this also does.
+  Future<SshService> _liveSsh({bool knownDead = false}) async {
+    if (!knownDead && await _answers()) return _ssh();
+    ref.invalidate(sshConnectionProvider(widget.profile.id));
+    return _ssh();
+  }
+
+  Future<bool>? _reconnecting;
+
+  /// Reconnects, replacing a dead SSH link first. With [report], a failure
+  /// is written in the conversation instead of staying silent. Callers that
+  /// overlap share one attempt: two would tear down each other's link.
+  Future<bool> _reconnect({bool report = false, bool knownDead = false}) =>
+      _reconnecting ??= _reconnectOnce(
+        report,
+        knownDead,
+      ).whenComplete(() => _reconnecting = null);
+
+  Future<bool> _reconnectOnce(bool report, bool knownDead) async {
+    final controller = _controller;
+    if (controller == null) return false;
+    try {
+      await controller.reconnect(ssh: await _liveSsh(knownDead: knownDead));
+      return controller.connected;
+    } on Object catch (e) {
+      if (report && mounted) controller.notice('Reconnect failed: $e');
+      return false;
+    }
+  }
+
+  /// Back from the background: the phone may have dropped the network while
+  /// asleep without the app being told. Check, and reconnect if needed.
+  Future<void> _wake() async {
+    final controller = _controller;
+    if (controller == null) {
+      if (_error != null) _retryOpen();
+      return;
+    }
+    // Probed here once; the reconnection need not probe the link again.
+    final answers = await _answers();
+    if (controller.connected && answers) return;
+    if (mounted) await _reconnect(knownDead: !answers);
+  }
+
+  void _retryOpen() {
+    ref.invalidate(sshConnectionProvider(widget.profile.id));
+    _open();
+  }
+
+  bool _listed = false;
+
+  /// A session started here joins the sessions list as soon as it has an id.
+  void _listNewSession(ChatState state) {
+    final id = state.sessionId;
+    if (_listed || widget.session != null || id == null) return;
+    _listed = true;
+    unawaited(
+      ref
+          .read(sessionListProvider(widget.profile.id).notifier)
+          .add(
+            SessionInfo(
+              id: id,
+              path: '',
+              modified: DateTime.now(),
+              cwd: widget.cwd,
+              title: widget.name,
+              recentlyActive: true,
+            ),
+          ),
+    );
+  }
+
   void _onChange() {
+    final controller = _controller;
+    if (controller != null) _listNewSession(controller.value);
     final connected = _controller?.connected ?? false;
     final dropped = _wasConnected && !connected;
     _wasConnected = connected;
@@ -359,29 +531,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final controller = _controller;
-    if (state == AppLifecycleState.resumed &&
-        controller != null &&
-        !controller.connected &&
-        !_retrying) {
-      unawaited(_reconnect());
-    }
+    if (state == AppLifecycleState.resumed) unawaited(_wake());
   }
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.session?.title ?? widget.cwd;
+    final title = widget.session?.title ?? widget.name ?? widget.cwd;
     final controller = _controller;
     if (controller != null) {
       return ChatView(
         controller: controller,
         title: title,
         recentlyActive: widget.session?.recentlyActive ?? false,
-        onReconnect: _reconnect,
+        onReconnect: () => _reconnect(report: true),
       );
     }
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: TermTitle(title)),
       body: Center(
         child: _error == null
             ? const CircularProgressIndicator()
@@ -390,15 +556,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('$_error', textAlign: TextAlign.center),
+                    TermLine('$_error', fault: true),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: () {
-                        ref.invalidate(
-                          sshConnectionProvider(widget.profile.id),
-                        );
-                        _open();
-                      },
+                      onPressed: _retryOpen,
                       child: const Text('Retry'),
                     ),
                   ],

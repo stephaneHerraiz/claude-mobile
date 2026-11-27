@@ -6,6 +6,7 @@ import '../ssh/key.dart';
 import '../ssh/profile.dart';
 import '../state/providers.dart';
 import 'sessions_screen.dart';
+import 'terminal_widgets.dart';
 
 class ProfilesScreen extends ConsumerWidget {
   const ProfilesScreen({super.key});
@@ -14,7 +15,7 @@ class ProfilesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profiles = ref.watch(profilesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Profiles')),
+      appBar: AppBar(title: const TermTitle('Profiles')),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Add profile',
         onPressed: () => Navigator.of(context).push(
@@ -27,11 +28,12 @@ class ProfilesScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('$e')),
         data: (list) => list.isEmpty
             ? const Center(
-                child: Text('No profile yet. Add one to reach a server.'),
+                child: TermLine('No profile yet. Add one to reach a server.'),
               )
             : ListView(
                 children: [
-                  for (final p in list)
+                  for (final (i, p) in list.indexed) ...[
+                    if (i > 0) const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.dns_outlined),
                       title: Text(p.name),
@@ -41,12 +43,36 @@ class ProfilesScreen extends ConsumerWidget {
                           builder: (_) => SessionsScreen(profile: p),
                         ),
                       ),
-                      trailing: IconButton(
-                        tooltip: 'Delete ${p.name}',
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _confirmDelete(context, ref, p),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Edit ${p.name}',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ProfileFormScreen(profile: p),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Clone ${p.name}',
+                            icon: const Icon(Icons.copy_outlined),
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => ProfileFormScreen(cloneOf: p),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Delete ${p.name}',
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _confirmDelete(context, ref, p),
+                          ),
+                        ],
                       ),
                     ),
+                  ],
                 ],
               ),
       ),
@@ -84,8 +110,16 @@ class ProfilesScreen extends ConsumerWidget {
   }
 }
 
+/// Adds a profile, edits [profile] when given, or adds a copy of [cloneOf].
 class ProfileFormScreen extends ConsumerStatefulWidget {
-  const ProfileFormScreen({super.key});
+  const ProfileFormScreen({super.key, this.profile, this.cloneOf})
+    : assert(profile == null || cloneOf == null);
+
+  final Profile? profile;
+
+  /// The profile the new one starts from. Its key is reused unless another
+  /// one is pasted.
+  final Profile? cloneOf;
 
   @override
   ConsumerState<ProfileFormScreen> createState() => _ProfileFormScreenState();
@@ -103,6 +137,25 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   final _jumpHost = TextEditingController();
   final _jumpPort = TextEditingController(text: '22');
   final _jumpUser = TextEditingController();
+
+  Profile? get _editing => widget.profile;
+  Profile? get _cloning => widget.cloneOf;
+
+  @override
+  void initState() {
+    super.initState();
+    final p = _editing ?? _cloning;
+    if (p == null) return;
+    _name.text = _cloning == null ? p.name : '${p.name} copy';
+    _host.text = p.host;
+    _port.text = '${p.port}';
+    _user.text = p.user;
+    if (p.jump case final j?) {
+      _jumpHost.text = j.host;
+      _jumpPort.text = '${j.port}';
+      _jumpUser.text = j.user;
+    }
+  }
 
   bool get _hasJump => _jumpHost.text.trim().isNotEmpty;
 
@@ -135,32 +188,50 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   Future<void> _save() async {
     setState(() => _keyError = null);
     if (!_form.currentState!.validate()) return;
-    final String key;
-    try {
-      key = unlockKey(_key.text, _passphrase.text);
-    } on KeyError catch (e) {
-      setState(() => _keyError = e);
-      return;
-    }
-    await ref
-        .read(profileStoreProvider)
-        .save(
-          Profile(
-            id: const Uuid().v4(),
-            name: _name.text.trim(),
-            host: _host.text.trim(),
-            port: int.parse(_port.text.trim()),
-            user: _user.text.trim(),
-            jump: _hasJump
-                ? JumpHost(
-                    host: _jumpHost.text.trim(),
-                    port: int.parse(_jumpPort.text.trim()),
-                    user: _jumpUser.text.trim(),
-                  )
-                : null,
+    final store = ref.read(profileStoreProvider);
+    // When editing, an empty key field keeps the key already stored; when
+    // cloning, it takes the key of the profile cloned.
+    String? key;
+    if (_key.text.trim().isNotEmpty || (_editing ?? _cloning) == null) {
+      try {
+        key = unlockKey(_key.text, _passphrase.text);
+      } on KeyError catch (e) {
+        setState(() => _keyError = e);
+        return;
+      }
+    } else if (_cloning case final source?) {
+      key = await store.privateKey(source.id);
+      if (key == null) {
+        if (!mounted) return;
+        setState(
+          () => _keyError = KeyError(
+            '${source.name} has no stored key any more. Paste one.',
           ),
-          privateKeyPem: key,
         );
+        return;
+      }
+    }
+    final profile = Profile(
+      id: _editing?.id ?? const Uuid().v4(),
+      name: _name.text.trim(),
+      host: _host.text.trim(),
+      port: int.parse(_port.text.trim()),
+      user: _user.text.trim(),
+      jump: _hasJump
+          ? JumpHost(
+              host: _jumpHost.text.trim(),
+              port: int.parse(_jumpPort.text.trim()),
+              user: _jumpUser.text.trim(),
+            )
+          : null,
+    );
+    if (_editing == null) {
+      await store.save(profile, privateKeyPem: key!);
+    } else {
+      await store.update(profile, privateKeyPem: key);
+      // Drop the live connection: it was opened with the old settings.
+      ref.invalidate(sshConnectionProvider(profile.id));
+    }
     ref.invalidate(profilesProvider);
     if (mounted) Navigator.of(context).pop();
   }
@@ -168,7 +239,15 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New profile')),
+      appBar: AppBar(
+        title: TermTitle(
+          _editing != null
+              ? 'Edit profile'
+              : _cloning != null
+              ? 'Clone profile'
+              : 'New profile',
+        ),
+      ),
       body: Form(
         key: _form,
         // Not a lazy list: every field must exist to be validated.
@@ -182,6 +261,7 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 decoration: const InputDecoration(labelText: 'Name'),
                 validator: _required,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _host,
                 decoration: const InputDecoration(labelText: 'Host'),
@@ -189,18 +269,21 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 keyboardType: TextInputType.url,
                 validator: _required,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _port,
                 decoration: const InputDecoration(labelText: 'Port'),
                 keyboardType: TextInputType.number,
                 validator: _validPort,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _user,
                 decoration: const InputDecoration(labelText: 'User'),
                 autocorrect: false,
                 validator: _required,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _jumpHost,
                 decoration: const InputDecoration(
@@ -213,12 +296,14 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 autocorrect: false,
                 keyboardType: TextInputType.url,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _jumpPort,
                 decoration: const InputDecoration(labelText: 'Jump port'),
                 keyboardType: TextInputType.number,
                 validator: (v) => _hasJump ? _validPort(v) : null,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _jumpUser,
                 decoration: const InputDecoration(labelText: 'Jump user'),
@@ -227,11 +312,16 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                     ? 'Required with a jump host'
                     : null,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _key,
                 decoration: InputDecoration(
                   labelText: 'Private key (PEM)',
-                  helperText: 'Stored only in this phone\'s secure storage.',
+                  helperText: _editing != null
+                      ? 'Leave empty to keep the current key.'
+                      : _cloning != null
+                      ? 'Leave empty to use the same key as ${_cloning!.name}.'
+                      : 'Stored only in this phone\'s secure storage.',
                   errorText: _keyError?.needsPassphrase == false
                       ? _keyError!.message
                       : null,
@@ -241,8 +331,9 @@ class _ProfileFormScreenState extends ConsumerState<ProfileFormScreen> {
                 enableSuggestions: false,
                 minLines: 3,
                 maxLines: 6,
-                validator: _required,
+                validator: (_editing ?? _cloning) == null ? _required : null,
               ),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: _passphrase,
                 decoration: InputDecoration(

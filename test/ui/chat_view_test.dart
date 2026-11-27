@@ -1,6 +1,6 @@
-import 'package:claude_mobile/state/session_controller.dart';
-import 'package:claude_mobile/ui/chat_screen.dart';
-import 'package:claude_mobile/ui/permission_card.dart';
+import 'package:remote_harness/state/session_controller.dart';
+import 'package:remote_harness/ui/chat_screen.dart';
+import 'package:remote_harness/ui/permission_card.dart';
 // ignore: deprecated_member_use, the Markdown package still builds on the framework's Material.
 import 'package:flutter/material.dart' as fm;
 import 'package:flutter_test/flutter_test.dart';
@@ -94,6 +94,43 @@ void main() {
     });
   }
 
+  testWidgets('the model in use is written above the input', (t) async {
+    await controller.start();
+    await pump(t);
+    expect(find.text('model: '), findsOneWidget);
+    expect(find.text('default'), findsOneWidget);
+    await t.tap(find.byTooltip('Model'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('haiku'));
+    await t.pumpAndSettle();
+    expect(find.text('haiku'), findsOneWidget);
+    expect(find.text('default'), findsNothing);
+  });
+
+  testWidgets('the model menu re-attaches with the chosen model', (t) async {
+    await controller.start();
+    await pump(t);
+    await t.tap(find.byTooltip('Model'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('opus'));
+    await t.pumpAndSettle();
+    expect(controller.model, 'opus');
+    expect(ssh.opened.last, contains('--model'));
+  });
+
+  testWidgets('the model menu is disabled while Claude is working', (t) async {
+    await controller.start();
+    await pump(t);
+    controller.send('go');
+    await t.pump();
+    expect(controller.value.busy, isTrue);
+    await t.tap(find.byTooltip('Model'), warnIfMissed: false);
+    // Not pumpAndSettle: the progress bar of a busy session never settles.
+    await t.pump(const Duration(milliseconds: 500));
+    expect(find.text('opus'), findsNothing);
+    expect(ssh.opened.length, 1);
+  });
+
   testWidgets('renders user and assistant items', (t) async {
     await controller.start();
     await pump(t);
@@ -107,6 +144,17 @@ void main() {
       t.widget<TextField>(find.byType(TextField)).controller!.text,
       isEmpty,
     );
+  });
+
+  testWidgets('the message input is no larger than the conversation', (
+    t,
+  ) async {
+    await controller.start();
+    await pump(t);
+    await t.enterText(find.byType(TextField), 'hello claude');
+    await t.pump();
+    final typed = t.widget<EditableText>(find.byType(EditableText)).style;
+    expect(typed.fontSize, 14);
   });
 
   testWidgets('does not send an empty message', (t) async {

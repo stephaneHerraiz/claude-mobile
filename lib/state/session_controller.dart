@@ -16,6 +16,8 @@ class SessionController extends ValueNotifier<ChatState> {
     required this.cwd,
     String Function()? newId,
     List<ChatItem> history = const [],
+    this._model,
+    this.name,
   }) : _resumeId = sessionId,
        _newId = newId ?? const Uuid().v4,
        super(ChatState(items: history, sessionId: sessionId));
@@ -23,6 +25,9 @@ class SessionController extends ValueNotifier<ChatState> {
   SshService _ssh;
   final String cwd;
   final String Function() _newId;
+
+  /// The name a new session is created under; a resumed one keeps its own.
+  final String? name;
   final String? _resumeId;
 
   LineChannel? _channel;
@@ -31,13 +36,36 @@ class SessionController extends ValueNotifier<ChatState> {
   /// True while the remote `claude` process is attached.
   bool get connected => _channel != null;
 
-  static String buildCommand({String? resumeId, String? newId}) {
+  /// Model aliases the app offers, as `claude --model` accepts them.
+  static const modelChoices = ['sonnet', 'opus', 'haiku', 'fable'];
+
+  String? _model;
+
+  /// The `--model` value in use, or null for Claude's own default.
+  String? get model => _model;
+
+  /// Switches the model by re-attaching to the same session with `--model`.
+  /// Does nothing if [model] is already in use.
+  Future<void> setModel(String? model) {
+    if (model == _model) return Future.value();
+    _model = model;
+    return start();
+  }
+
+  static String buildCommand({
+    String? resumeId,
+    String? newId,
+    String? model,
+    String? name,
+  }) {
+    final named = name != null && name.trim().isNotEmpty;
     final session = resumeId != null
         ? '--resume ${shellQuote(resumeId)}'
-        : '--session-id ${shellQuote(newId!)}';
+        : '--session-id ${shellQuote(newId!)}'
+              '${named ? ' --name ${shellQuote(name.trim())}' : ''}';
     return 'claude -p --input-format stream-json --output-format stream-json '
         '--verbose --include-partial-messages --permission-prompt-tool stdio '
-        '$session';
+        '$session${model == null ? '' : ' --model ${shellQuote(model)}'}';
   }
 
   Future<void>? _starting;
@@ -48,11 +76,17 @@ class SessionController extends ValueNotifier<ChatState> {
       _starting ??= _start().whenComplete(() => _starting = null);
 
   Future<void> _start() async {
-    await _detach();
+    if (_channel != null) {
+      // Leaving a live process: what it was doing or asking is void.
+      await _detach();
+      value = turnAbandoned(value);
+    }
     final resume = value.sessionId ?? _resumeId;
     final claude = buildCommand(
       resumeId: resume,
       newId: resume == null ? _newId() : null,
+      model: _model,
+      name: name,
     );
     // Login shell: a bare SSH exec often lacks the PATH that holds `claude`.
     final command =
@@ -84,6 +118,9 @@ class SessionController extends ValueNotifier<ChatState> {
     if (ssh != null) _ssh = ssh;
     return start();
   }
+
+  /// Writes [text] in the conversation, as the app speaking.
+  void notice(String text) => value = addNotice(value, text);
 
   /// Returns false, leaving a notice, when there is no link to send over.
   bool send(String text) {

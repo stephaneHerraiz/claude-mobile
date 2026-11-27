@@ -1,5 +1,5 @@
-import 'package:claude_mobile/core/events.dart';
-import 'package:claude_mobile/ui/permission_card.dart';
+import 'package:remote_harness/core/events.dart';
+import 'package:remote_harness/ui/permission_card.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 

@@ -12,18 +12,76 @@ class MarkdownText extends StatelessWidget {
   const MarkdownText(this.data, {super.key});
   final String data;
 
-  static final Map<(Brightness, Color), fm.ThemeData> _themes = {};
+  static final Map<Object, fm.ThemeData> _themes = {};
+
+  static fm.ThemeData _frameworkTheme(ThemeData app) {
+    final base = fm.ThemeData(
+      brightness: app.brightness,
+      colorSchemeSeed: app.colorScheme.primary,
+      fontFamily: app.textTheme.bodyMedium?.fontFamily,
+    );
+    return base.copyWith(
+      textTheme: base.textTheme.apply(
+        bodyColor: app.colorScheme.onSurface,
+        displayColor: app.colorScheme.onSurface,
+      ),
+    );
+  }
+
+  /// Headings and links in the accent colour, code in a ruled box: the
+  /// package's own defaults are blue links on grey.
+  static MarkdownStyleSheet _sheet(fm.ThemeData base, ColorScheme scheme) {
+    final heading = TextStyle(
+      color: scheme.primary,
+      fontWeight: FontWeight.bold,
+    );
+    final box = BoxDecoration(
+      color: scheme.surfaceContainerLow,
+      border: Border.all(color: scheme.outlineVariant),
+      borderRadius: BorderRadius.circular(2),
+    );
+    final sheet = MarkdownStyleSheet.fromTheme(base);
+    return sheet.copyWith(
+      a: TextStyle(
+        color: scheme.primary,
+        decoration: TextDecoration.underline,
+        decorationColor: scheme.primary,
+      ),
+      h1: sheet.h1?.merge(heading),
+      h2: sheet.h2?.merge(heading),
+      h3: sheet.h3?.merge(heading),
+      h4: sheet.h4?.merge(heading),
+      code: sheet.code?.copyWith(
+        color: scheme.secondary,
+        backgroundColor: scheme.surfaceContainerLow,
+      ),
+      codeblockDecoration: box,
+      blockquoteDecoration: box,
+      horizontalRuleDecoration: BoxDecoration(
+        border: Border(top: BorderSide(color: scheme.outlineVariant)),
+      ),
+      tableBorder: TableBorder.all(color: scheme.outlineVariant),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final key = (theme.brightness, theme.colorScheme.primary);
+    final key = (
+      theme.brightness,
+      theme.colorScheme.primary,
+      theme.colorScheme.onSurface,
+      theme.textTheme.bodyMedium?.fontFamily,
+    );
     return fm.Theme(
-      data: _themes[key] ??= fm.ThemeData(
-        brightness: key.$1,
-        colorSchemeSeed: key.$2,
+      data: _themes[key] ??= _frameworkTheme(theme),
+      child: Builder(
+        builder: (context) => MarkdownBody(
+          data: data,
+          selectable: true,
+          styleSheet: _sheet(fm.Theme.of(context), theme.colorScheme),
+        ),
       ),
-      child: MarkdownBody(data: data, selectable: true),
     );
   }
 }
