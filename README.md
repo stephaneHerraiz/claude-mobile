@@ -10,10 +10,6 @@ there is a plain shell command sent over SSH.
 
 No secrets in git: SSH keys live only in the phone's secure storage.
 
-The Android application id is still `dev.herraiz.claude_mobile`, after the app's first
-name: changing that id would install a second app next to the old one, without its
-profiles and keys.
-
 - [What it looks like](#what-it-looks-like)
 - [Install on a phone](#install-on-a-phone)
 - [The big picture](#the-big-picture)
