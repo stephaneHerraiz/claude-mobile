@@ -142,6 +142,9 @@ class _ChatViewState extends State<ChatView> {
                           minLines: 1,
                           maxLines: 5,
                           textInputAction: TextInputAction.newline,
+                          // Same size as the conversation, not the
+                          // larger TextField default (16).
+                          style: const TextStyle(fontSize: 14),
                           decoration: const InputDecoration(
                             hintText: 'Message Claude',
                             // Always shown, unlike prefixText.

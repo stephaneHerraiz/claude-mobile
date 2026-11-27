@@ -146,6 +146,17 @@ void main() {
     );
   });
 
+  testWidgets('the message input is no larger than the conversation', (
+    t,
+  ) async {
+    await controller.start();
+    await pump(t);
+    await t.enterText(find.byType(TextField), 'hello claude');
+    await t.pump();
+    final typed = t.widget<EditableText>(find.byType(EditableText)).style;
+    expect(typed.fontSize, 14);
+  });
+
   testWidgets('does not send an empty message', (t) async {
     await controller.start();
     await pump(t);

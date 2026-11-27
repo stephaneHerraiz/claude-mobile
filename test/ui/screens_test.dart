@@ -300,6 +300,7 @@ void main() {
     expect(name.fontWeight, isNot(FontWeight.bold));
     expect(directory.color, isNot(TerminalColors.green));
     expect(directory.fontSize!, lessThan(name.fontSize!));
+    expect(name.fontSize, 14);
   });
 
   testWidgets('adding a profile stores it with its key', (t) async {
