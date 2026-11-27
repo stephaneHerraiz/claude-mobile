@@ -126,10 +126,11 @@ jobs:
             echo "::error::the APK is signed with a debug key"
             exit 1
           fi
-          # apksigner names the signer "Signer #1" or, depending on its version and on the
-          # signature schemes, "Signer (minSdkVersion=24, maxSdkVersion=...)". The first
-          # signer line is the app's; "Source Stamp Signer" lines are left out.
-          cert=$(sed -nE 's/^Signer .*certificate SHA-256 digest: ([0-9a-f]+)$/\1/p' <<<"$certs" | head -n 1)
+          # The wording depends on apksigner's version: "Signer #1 certificate ..." up to
+          # build-tools 36, "V2 Signer: certificate ..." from 37. Any line giving a
+          # certificate digest is read; the first is the app's signer. "Source Stamp
+          # Signer" lines describe another certificate and are left out.
+          cert=$(sed -nE '/^Source Stamp/!s/^.*certificate SHA-256 digest: ([0-9a-f]{64})$/\1/p' <<<"$certs" | head -n 1)
           if [[ -z "$cert" ]]; then
             echo "::error::no signing certificate found in the APK"
             # Certificates are public: printed so that the next failure explains itself.
